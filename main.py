@@ -8,11 +8,12 @@ from selenium.webdriver.chrome.options import Options
 
 
 def parse_args():
-    '''
+    """
     Parses the command line arguments and validates the input
 
     Returns: arguments
-    '''
+    """
+
     parser = argparse.ArgumentParser(
         description="The most awesome Selenium Capita Selecta crawler"
     )
@@ -33,14 +34,15 @@ def parse_args():
 
     return args
 
+
 def crawl_url(url, headless=False):
-    '''
+    """
     Crawls a single url
 
     Parameters:
     url (string): The url to crawl
     headless (bool): To run in headless mode
-    '''
+    """
 
     chrome_options = Options()
     if headless:
@@ -53,16 +55,16 @@ def crawl_url(url, headless=False):
 
 
 def crawl_list(urls):
-    '''
+    """
     Crawls a list of urls
 
     urls (list[string]): The urls
-    '''
+    """
     print(urls)
 
 
 def main():
-    ''' Main function '''
+    """Main function"""
 
     args = parse_args()
     headless = bool(not args.H or (args.H and args.H == "headless"))
