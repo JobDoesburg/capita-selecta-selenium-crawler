@@ -1,10 +1,17 @@
 from os.path import exists
 import argparse
 import csv
+import logging
+import time
+import os
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+
+
+LOGNAME = 'crawl.log'
+logging.basicConfig(filename=LOGNAME, level=logging.INFO)
 
 
 def parse_args():
@@ -48,10 +55,12 @@ def crawl_url(url, headless=False):
     if headless:
         chrome_options.add_argument("--headless")
     driver = webdriver.Chrome(options=chrome_options)
+    logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
     driver.get(url)
     elem = driver.find_element(by=By.NAME, value="q")
     elem.clear()
     driver.close()
+    logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
 
 def crawl_list(urls):
@@ -60,7 +69,9 @@ def crawl_list(urls):
 
     urls (list[string]): The urls
     """
+    logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
     print(urls)
+    logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
 
 def main():
