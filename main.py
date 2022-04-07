@@ -1,6 +1,7 @@
 from os.path import exists
 import argparse
 import csv
+from tld import get_fld
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -35,6 +36,7 @@ def crawl_url(url, headless=False):
         chrome_options.add_argument("--headless")
     driver = webdriver.Chrome(options=chrome_options)
     driver.get(url)
+    create_screenshot(driver)
     elem = driver.find_element(by=By.NAME, value="q")
     elem.clear()
     driver.close()
@@ -42,6 +44,12 @@ def crawl_url(url, headless=False):
 
 def crawl_list(urls):
     print(urls)
+
+
+def create_screenshot(driver, mobile=False, post_consent=False):
+    fld = get_fld(driver.current_url)
+    filename = f"{fld}_{'mobile' if mobile else 'desktop'}_{'post' if post_consent else 'pre'}_consent.png"
+    driver.save_screenshot(filename)
 
 
 def main():
