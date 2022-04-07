@@ -53,7 +53,7 @@ def create_json(crawler_output, filename):
 
     """
     with open('%s.json' %filename, 'w') as outfile:
-        json.dump(crawler_output, outfile)
+        json.dump(crawler_output, outfile, indent=4)
 
 
 def crawl_url(url, output_dir='', mobile=False, headless=False):
