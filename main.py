@@ -1,11 +1,7 @@
 from os.path import exists
 import argparse
-<<<<<<< HEAD
 import csv
-import numpy as np
-=======
 
->>>>>>> 53cc1072f9d3fb7e0b533cb5ef79df2c2697a908
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
