@@ -5,10 +5,19 @@ import csv
 import json
 =======
 from tld import get_fld
+<<<<<<< HEAD
 >>>>>>> 03cec468b152cd821a943b8acc99c160a97d3c2a
+=======
+import logging
+import time
+>>>>>>> aad38fd544a926ec5f4dc1dfae1e833d4084269b
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+
+
+LOGNAME = 'crawl.log'
+logging.basicConfig(filename=LOGNAME, level=logging.INFO)
 
 
 def parse_args():
@@ -64,13 +73,21 @@ def crawl_url(url, headless=False):
     if headless:
         chrome_options.add_argument("--headless")
     driver = webdriver.Chrome(options=chrome_options)
+<<<<<<< HEAD
 
 >>>>>>> 03cec468b152cd821a943b8acc99c160a97d3c2a
+=======
+    logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+>>>>>>> aad38fd544a926ec5f4dc1dfae1e833d4084269b
     driver.get(url)
     create_screenshot(driver)
     cookies = driver.get_cookies()
     driver.close()
+<<<<<<< HEAD
     create_json(url)
+=======
+    logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+>>>>>>> aad38fd544a926ec5f4dc1dfae1e833d4084269b
 
     output = {
         'website_domain': None,
@@ -92,7 +109,9 @@ def crawl_list(urls):
 
     urls (list[string]): The urls
     """
+    logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
     print(urls)
+    logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
 
 def create_screenshot(driver, mobile=False, post_consent=False):
