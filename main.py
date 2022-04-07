@@ -41,7 +41,7 @@ def parse_args():
     return args
 
 
-def crawl_url(url, headless=False):
+def crawl_url(url, headless=False, mobile=False):
     """
     Crawls a single url
 
@@ -53,24 +53,27 @@ def crawl_url(url, headless=False):
     chrome_options = Options()
     if headless:
         chrome_options.add_argument("--headless")
+    if mobile:
+        mobile_emulation = {"deviceName": "Nexus 5"}
+        chrome_options.add_experimental_option("mobileEmulation", mobile_emulation)
     driver = webdriver.Chrome(options=chrome_options)
     logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
     driver.get(url)
-    create_screenshot(driver)
+    create_screenshot(driver, mobile=mobile)
     cookies = driver.get_cookies()
     driver.close()
     logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
     output = {
-        'website_domain': None,
-        'crawl_mode': None,
-        'post_pageload_url': None,
-        'pageload_start_ts': None,
-        'pageload_end_ts': None,
-        'consent_status': None,
-        'requests': [None],
-        'load_time': None,
-        'cookies': cookies,
+        "website_domain": None,
+        "crawl_mode": None,
+        "post_pageload_url": None,
+        "pageload_start_ts": None,
+        "pageload_end_ts": None,
+        "consent_status": None,
+        "requests": [None],
+        "load_time": None,
+        "cookies": cookies,
     }
     # TODO: Save the output here
 
@@ -97,8 +100,10 @@ def main():
 
     args = parse_args()
     headless = bool(not args.H or (args.H and args.H == "headless"))
+    mobile = bool(args.m and args.m == "mobile")
+
     if args.u:
-        crawl_url(args.u, headless=headless)
+        crawl_url(args.u, headless=headless, mobile=mobile)
     elif args.i:
         assert exists(args.i)
         with open(args.i, "r", newline="") as urls_csv:
