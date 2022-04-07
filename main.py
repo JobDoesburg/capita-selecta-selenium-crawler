@@ -9,7 +9,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
 
-LOGNAME = 'crawl.log'
+LOGNAME = "crawl.log"
 logging.basicConfig(filename=LOGNAME, level=logging.INFO)
 
 
@@ -61,9 +61,10 @@ def crawl_url(url, headless=False, mobile=False):
     driver.get(url)
     create_screenshot(driver, mobile=mobile)
     cookies = driver.get_cookies()
+    # TODO accept cookie consent window
+    create_screenshot(driver, mobile=mobile, post_consent=True)
     driver.close()
     logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
-
     output = {
         "website_domain": None,
         "crawl_mode": None,
