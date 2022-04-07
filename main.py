@@ -1,16 +1,10 @@
 from os.path import exists
 import argparse
 import csv
-<<<<<<< HEAD
 import json
-=======
 from tld import get_fld
-<<<<<<< HEAD
->>>>>>> 03cec468b152cd821a943b8acc99c160a97d3c2a
-=======
 import logging
 import time
->>>>>>> aad38fd544a926ec5f4dc1dfae1e833d4084269b
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -47,18 +41,16 @@ def parse_args():
 
     return args
 
-<<<<<<< HEAD
-def create_json(url):
-    data = {'website_domain': url,
-            'crawl_mode': "desktop"}
-    print(data)
-    test = "google.com"
-    with open('%s_desktop.json' %test, 'w') as outfile:
-        json.dump(data, outfile)
+def create_json(crawler_output, filename):
+    """
+    Create a json file containing crawler output
 
-def crawl_url(url):
-    driver = webdriver.Chrome()
-=======
+    Parameters:
+    crawler_output
+
+    """
+    with open('%s.json' %filename, 'w') as outfile:
+        json.dump(crawler_output, outfile)
 
 def crawl_url(url, headless=False):
     """
@@ -73,21 +65,13 @@ def crawl_url(url, headless=False):
     if headless:
         chrome_options.add_argument("--headless")
     driver = webdriver.Chrome(options=chrome_options)
-<<<<<<< HEAD
 
->>>>>>> 03cec468b152cd821a943b8acc99c160a97d3c2a
-=======
     logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
->>>>>>> aad38fd544a926ec5f4dc1dfae1e833d4084269b
     driver.get(url)
     create_screenshot(driver)
     cookies = driver.get_cookies()
     driver.close()
-<<<<<<< HEAD
-    create_json(url)
-=======
     logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
->>>>>>> aad38fd544a926ec5f4dc1dfae1e833d4084269b
 
     output = {
         'website_domain': None,
@@ -100,7 +84,6 @@ def crawl_url(url, headless=False):
         'load_time': None,
         'cookies': cookies,
     }
-    # TODO: Save the output here
 
 
 def crawl_list(urls):
