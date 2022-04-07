@@ -1,16 +1,17 @@
-from os.path import exists
+from os import path
 import argparse
 import csv
 from tld import get_fld
 import logging
 import time
 import json
-from os import path
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-DATA_PATH = path.join('..', 'crawl_data')
+DATA_PATH = path.join(path.join(path.dirname(path.abspath(__file__)),
+                                '..'),
+                      'crawl_data')
 LOGNAME = "crawl.log"
 logging.basicConfig(filename=path.join(DATA_PATH, LOGNAME), level=logging.INFO)
 
@@ -136,7 +137,7 @@ def main():
     if args.u:
         crawl_url(args.u, headless=headless, mobile=mobile)
     elif args.i:
-        assert exists(args.i)
+        assert path.exists(args.i)
         with open(args.i, "r", newline="") as urls_csv:
             reader = csv.reader(urls_csv)
             urls_with_ranks = list(reader)[1:]  # Skip header
