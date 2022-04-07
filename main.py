@@ -1,4 +1,7 @@
+from os.path import exists
 import argparse
+import csv
+import numpy as np
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 
@@ -24,7 +27,7 @@ def crawl_url(URL):
     driver.close()
 
 def crawl_list(URLS):
-    pass
+    print(URLS)
 
 def main():
     args = parse_args()
@@ -32,8 +35,11 @@ def main():
     if args.u:
         crawl_url(args.u)
     elif args.i:
-        # TODO: Open CSV and crawl all URLS
-        pass
+        assert exists(args.i)
+        with open(args.i, 'r', newline='') as urls_csv:
+            reader = csv.reader(urls_csv)
+            urls_with_ranks = list(reader)[1:] # Skip header
+            crawl_list(urls_with_ranks)
 
 if __name__ == '__main__':
     main()
