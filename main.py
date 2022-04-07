@@ -48,10 +48,23 @@ def crawl_url(url, headless=False):
     if headless:
         chrome_options.add_argument("--headless")
     driver = webdriver.Chrome(options=chrome_options)
+
     driver.get(url)
-    elem = driver.find_element(by=By.NAME, value="q")
-    elem.clear()
+    cookies = driver.get_cookies()
     driver.close()
+
+    output = {
+        'website_domain': None,
+        'crawl_mode': None,
+        'post_pageload_url': None,
+        'pageload_start_ts': None,
+        'pageload_end_ts': None,
+        'consent_status': None,
+        'requests': [None],
+        'load_time': None,
+        'cookies': cookies,
+    }
+    # TODO: Save the output here
 
 
 def crawl_list(urls):
