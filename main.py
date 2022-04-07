@@ -13,18 +13,27 @@ def parse_args():
     if args.m:
         assert args.m == 'mobile' or args.m == 'desktop'
 
+    print(args)
+    return args
+
+def crawl_url(URL):
+    driver = webdriver.Chrome()
+    driver.get(URL)
+    elem = driver.find_element_by_name("q")
+    elem.clear()
+    driver.close()
+
+def crawl_list(URLS):
+    pass
+
 def main():
     args = parse_args()
 
-    driver = webdriver.Chrome()
-    driver.get("http://www.python.org")
-    assert "Python" in driver.title
-    elem = driver.find_element_by_name("q")
-    elem.clear()
-    elem.send_keys("pycon")
-    elem.send_keys(Keys.RETURN)
-    assert "No results found." not in driver.page_source
-    driver.close()
+    if args.u:
+        crawl_url(args.u)
+    elif args.i:
+        # TODO: Open CSV and crawl all URLS
+        pass
 
 if __name__ == '__main__':
     main()
