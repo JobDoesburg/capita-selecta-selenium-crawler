@@ -4,11 +4,16 @@ import csv
 from tld import get_fld
 
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 
 
 def parse_args():
+    """
+    Parses the command line arguments and validates the input
+
+    Returns: arguments
+    """
+
     parser = argparse.ArgumentParser(
         description="The most awesome Selenium Capita Selecta crawler"
     )
@@ -31,18 +36,44 @@ def parse_args():
 
 
 def crawl_url(url, headless=False):
+    """
+    Crawls a single url
+
+    Parameters:
+    url (string): The url to crawl
+    headless (bool): To run in headless mode
+    """
+
     chrome_options = Options()
     if headless:
         chrome_options.add_argument("--headless")
     driver = webdriver.Chrome(options=chrome_options)
+
     driver.get(url)
     create_screenshot(driver)
-    elem = driver.find_element(by=By.NAME, value="q")
-    elem.clear()
+    cookies = driver.get_cookies()
     driver.close()
+
+    output = {
+        'website_domain': None,
+        'crawl_mode': None,
+        'post_pageload_url': None,
+        'pageload_start_ts': None,
+        'pageload_end_ts': None,
+        'consent_status': None,
+        'requests': [None],
+        'load_time': None,
+        'cookies': cookies,
+    }
+    # TODO: Save the output here
 
 
 def crawl_list(urls):
+    """
+    Crawls a list of urls
+
+    urls (list[string]): The urls
+    """
     print(urls)
 
 
@@ -53,6 +84,8 @@ def create_screenshot(driver, mobile=False, post_consent=False):
 
 
 def main():
+    """Main function"""
+
     args = parse_args()
     headless = bool(not args.H or (args.H and args.H == "headless"))
     if args.u:
