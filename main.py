@@ -1,6 +1,7 @@
 from os.path import exists
 import argparse
 import csv
+import json
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -20,12 +21,21 @@ def parse_args():
     print(args)
     return args
 
+def create_json(url):
+    data = {'website_domain': url,
+            'crawl_mode': "desktop"}
+    print(data)
+    test = "google.com"
+    with open('%s_desktop.json' %test, 'w') as outfile:
+        json.dump(data, outfile)
+
 def crawl_url(url):
     driver = webdriver.Chrome()
     driver.get(url)
     elem = driver.find_element(by=By.NAME, value="q")
     elem.clear()
     driver.close()
+    create_json(url)
 
 def crawl_list(urls):
     print(urls)
