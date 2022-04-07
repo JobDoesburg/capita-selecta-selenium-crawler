@@ -35,14 +35,19 @@ def parse_args():
     return args
 
 
-def crawl_url(url, headless=False):
+def crawl_url(url, output_dir='', mobile=False, headless=False):
     """
     Crawls a single url
 
     Parameters:
     url (string): The url to crawl
+    output_dir (string): The output directory for the files
+    mobile (bool): Run with a mobile client
     headless (bool): To run in headless mode
     """
+
+    fld = get_fld(url)
+    output_filename = f"{output_dir}{fld}_{'mobile' if mobile else 'desktop'}_"
 
     chrome_options = Options()
     if headless:
@@ -50,7 +55,7 @@ def crawl_url(url, headless=False):
     driver = webdriver.Chrome(options=chrome_options)
 
     driver.get(url)
-    create_screenshot(driver)
+    create_screenshot(driver, output_filename)
     cookies = driver.get_cookies()
     driver.close()
 
@@ -77,9 +82,17 @@ def crawl_list(urls):
     print(urls)
 
 
-def create_screenshot(driver, mobile=False, post_consent=False):
-    fld = get_fld(driver.current_url)
-    filename = f"{fld}_{'mobile' if mobile else 'desktop'}_{'post' if post_consent else 'pre'}_consent.png"
+def create_screenshot(driver, output_filename, post_consent=False):
+    """
+    Create a screenshot and save it
+
+    Parameters:
+    driver (object): Webdriver
+    output_filename (string): The base location to save the ss
+    post_consent (bool): Pre or post accepting cookies
+    """
+
+    filename = output_filename + f"{'post' if post_consent else 'pre'}_consent.png"
     driver.save_screenshot(filename)
 
 
