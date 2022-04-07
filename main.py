@@ -1,6 +1,8 @@
 import argparse
+
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
 
 def parse_args():
     parser = argparse.ArgumentParser(description='The most awesome Selenium Capita Selecta crawler')
@@ -19,11 +21,11 @@ def parse_args():
 def crawl_url(URL):
     driver = webdriver.Chrome()
     driver.get(URL)
-    elem = driver.find_element_by_name("q")
+    elem = driver.find_element(by=By.NAME, value="q")
     elem.clear()
     driver.close()
 
-def crawl_list(URLS):
+def crawl_list(urls):
     pass
 
 def main():
