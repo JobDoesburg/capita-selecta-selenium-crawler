@@ -9,9 +9,7 @@ import json
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-DATA_PATH = path.join(path.join(path.dirname(path.abspath(__file__)),
-                                '..'),
-                      'crawl_data')
+DATA_PATH = path.join(path.dirname(path.abspath(__file__)), '..', 'crawl_data')
 LOGNAME = "crawl.log"
 logging.basicConfig(filename=path.join(DATA_PATH, LOGNAME), level=logging.INFO)
 
@@ -52,7 +50,7 @@ def create_json(crawler_output, filename):
     crawler_output
 
     """
-    with open('%s.json' %filename, 'w') as outfile:
+    with open('%s.json' % filename, 'w') as outfile:
         json.dump(crawler_output, outfile, indent=4)
 
 
@@ -98,7 +96,7 @@ def crawl_url(url, output_dir='', mobile=False, headless=False):
         "load_time": None,
         "cookies": cookies,
     }
-    
+
     create_json(output, output_filename)
 
 
