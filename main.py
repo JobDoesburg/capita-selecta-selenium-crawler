@@ -17,7 +17,6 @@ def parse_args():
     if args.m:
         assert args.m == 'mobile' or args.m == 'desktop'
 
-    print(args)
     return args
 
 def crawl_url(url):
