@@ -2,9 +2,15 @@ from os.path import exists
 import argparse
 import csv
 from tld import get_fld
+import logging
+import time
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+
+
+LOGNAME = 'crawl.log'
+logging.basicConfig(filename=LOGNAME, level=logging.INFO)
 
 
 def parse_args():
@@ -48,11 +54,12 @@ def crawl_url(url, headless=False):
     if headless:
         chrome_options.add_argument("--headless")
     driver = webdriver.Chrome(options=chrome_options)
-
+    logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
     driver.get(url)
     create_screenshot(driver)
     cookies = driver.get_cookies()
     driver.close()
+    logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
     output = {
         'website_domain': None,
@@ -74,7 +81,9 @@ def crawl_list(urls):
 
     urls (list[string]): The urls
     """
+    logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
     print(urls)
+    logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
 
 def create_screenshot(driver, mobile=False, post_consent=False):
