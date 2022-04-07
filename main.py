@@ -1,9 +1,14 @@
 from os.path import exists
 import argparse
+<<<<<<< HEAD
 import csv
 import numpy as np
+=======
+
+>>>>>>> 53cc1072f9d3fb7e0b533cb5ef79df2c2697a908
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
 
 def parse_args():
     parser = argparse.ArgumentParser(description='The most awesome Selenium Capita Selecta crawler')
@@ -19,15 +24,15 @@ def parse_args():
     print(args)
     return args
 
-def crawl_url(URL):
+def crawl_url(url):
     driver = webdriver.Chrome()
-    driver.get(URL)
-    elem = driver.find_element_by_name("q")
+    driver.get(url)
+    elem = driver.find_element(by=By.NAME, value="q")
     elem.clear()
     driver.close()
 
-def crawl_list(URLS):
-    print(URLS)
+def crawl_list(urls):
+    print(urls)
 
 def main():
     args = parse_args()
