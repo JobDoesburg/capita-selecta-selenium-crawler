@@ -4,6 +4,7 @@ import csv
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
 
 
 def parse_args():
@@ -15,17 +16,24 @@ def parse_args():
         "-u", help="single URL to crawl, this takes precedent over the -i option"
     )
     parser.add_argument("-i", help="path to CSV with domains to crawl")
+    parser.add_argument("-H", help="headless or headful (default is headless)")
 
     args = parser.parse_args()
 
     if args.m:
         assert args.m == "mobile" or args.m == "desktop"
 
+    if args.H:
+        assert args.H == "headless" or args.H == "headful"
+
     return args
 
 
-def crawl_url(url):
-    driver = webdriver.Chrome()
+def crawl_url(url, headless=False):
+    chrome_options = Options()
+    if headless:
+        chrome_options.add_argument("--headless")
+    driver = webdriver.Chrome(options=chrome_options)
     driver.get(url)
     elem = driver.find_element(by=By.NAME, value="q")
     elem.clear()
@@ -38,9 +46,9 @@ def crawl_list(urls):
 
 def main():
     args = parse_args()
-
+    headless = bool(not args.H or (args.H and args.H == "headless"))
     if args.u:
-        crawl_url(args.u)
+        crawl_url(args.u, headless=headless)
     elif args.i:
         assert exists(args.i)
         with open(args.i, "r", newline="") as urls_csv:
