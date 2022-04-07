@@ -5,13 +5,14 @@ from tld import get_fld
 import logging
 import time
 import json
+from os import path
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-
+DATA_PATH = path.join('..', 'crawl_data')
 LOGNAME = "crawl.log"
-logging.basicConfig(filename=LOGNAME, level=logging.INFO)
+logging.basicConfig(filename=path.join(DATA_PATH, LOGNAME), level=logging.INFO)
 
 
 def parse_args():
@@ -67,6 +68,7 @@ def crawl_url(url, output_dir='', mobile=False, headless=False):
 
     fld = get_fld(url)
     output_filename = f"{output_dir}{fld}_{'mobile' if mobile else 'desktop'}_"
+    output_filename = path.join(DATA_PATH, output_filename)
 
     chrome_options = Options()
     if headless:
