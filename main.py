@@ -33,6 +33,7 @@ def parse_args():
 
     return args
 
+
 def crawl_url(url, headless=False):
     '''
     Crawls a single url
