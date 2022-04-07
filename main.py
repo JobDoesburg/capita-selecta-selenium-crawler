@@ -7,6 +7,12 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 
 def parse_args():
+    '''
+    Parses the command line arguments and validates the input
+
+    Returns: arguments
+    '''
+
     parser = argparse.ArgumentParser(description='The most awesome Selenium Capita Selecta crawler')
     parser.add_argument('-m', help='mobile or desktop')
     parser.add_argument('-u', help='single URL to crawl, this takes precedent over the -i option')
@@ -20,6 +26,12 @@ def parse_args():
     return args
 
 def crawl_url(url):
+    '''
+    Crawls a single url
+
+    Parameters:
+    url (string): The url to crawl
+    '''
     driver = webdriver.Chrome()
     driver.get(url)
     elem = driver.find_element(by=By.NAME, value="q")
@@ -27,9 +39,16 @@ def crawl_url(url):
     driver.close()
 
 def crawl_list(urls):
+    '''
+    Crawls a list of urls
+
+    urls (list[string]): The urls
+    '''
     print(urls)
 
 def main():
+    ''' Main function '''
+
     args = parse_args()
 
     if args.u:
