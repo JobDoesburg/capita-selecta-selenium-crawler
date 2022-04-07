@@ -2,9 +2,15 @@ from os.path import exists
 import argparse
 import csv
 from tld import get_fld
+import logging
+import time
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+
+
+LOGNAME = 'crawl.log'
+logging.basicConfig(filename=LOGNAME, level=logging.INFO)
 
 
 def parse_args():
@@ -52,23 +58,29 @@ def crawl_url(url, output_dir='', mobile=False, headless=False):
     chrome_options = Options()
     if headless:
         chrome_options.add_argument("--headless")
+    if mobile:
+        mobile_emulation = {"deviceName": "Nexus 5"}
+        chrome_options.add_experimental_option("mobileEmulation", mobile_emulation)
     driver = webdriver.Chrome(options=chrome_options)
+    logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
     driver.get(url)
-    create_screenshot(driver, output_filename)
+    create_screenshot(driver, output_filename, mobile=mobile)
     cookies = driver.get_cookies()
+
     driver.close()
+    logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
     output = {
-        'website_domain': None,
-        'crawl_mode': None,
-        'post_pageload_url': None,
-        'pageload_start_ts': None,
-        'pageload_end_ts': None,
-        'consent_status': None,
-        'requests': [None],
-        'load_time': None,
-        'cookies': cookies,
+        "website_domain": None,
+        "crawl_mode": None,
+        "post_pageload_url": None,
+        "pageload_start_ts": None,
+        "pageload_end_ts": None,
+        "consent_status": None,
+        "requests": [None],
+        "load_time": None,
+        "cookies": cookies,
     }
     # TODO: Save the output here
 
@@ -79,10 +91,12 @@ def crawl_list(urls):
 
     urls (list[string]): The urls
     """
+    logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
     print(urls)
+    logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
 
-def create_screenshot(driver, output_filename, post_consent=False):
+def create_screenshot(driver, output_filename, mobile=False, post_consent=False):
     """
     Create a screenshot and save it
 
@@ -92,7 +106,7 @@ def create_screenshot(driver, output_filename, post_consent=False):
     post_consent (bool): Pre or post accepting cookies
     """
 
-    filename = output_filename + f"{'post' if post_consent else 'pre'}_consent.png"
+    filename = output_filename + f"{'mobile' if mobile else 'desktop'}_{'post' if post_consent else 'pre'}_consent.png"
     driver.save_screenshot(filename)
 
 
@@ -101,8 +115,10 @@ def main():
 
     args = parse_args()
     headless = bool(not args.H or (args.H and args.H == "headless"))
+    mobile = bool(args.m and args.m == "mobile")
+
     if args.u:
-        crawl_url(args.u, headless=headless)
+        crawl_url(args.u, headless=headless, mobile=mobile)
     elif args.i:
         assert exists(args.i)
         with open(args.i, "r", newline="") as urls_csv:
