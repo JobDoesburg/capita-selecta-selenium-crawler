@@ -6,7 +6,7 @@ import logging
 import time
 import json
 
-from selenium import webdriver
+from seleniumwire import webdriver
 from selenium.webdriver.chrome.options import Options
 
 DATA_PATH = path.join(path.dirname(path.abspath(__file__)), '..', 'crawl_data')
@@ -47,11 +47,27 @@ def create_json(crawler_output, filename):
     Create a json file containing crawler output
 
     Parameters:
-    crawler_output
-
+    crawler_output (dict): The contents of the JSON to be created
+    filename (string): The name of the output JSON file
     """
     with open('%s.json' % filename, 'w') as outfile:
         json.dump(crawler_output, outfile, indent=4)
+
+
+def get_requests(driver):
+    """
+    Get the HTTP requests and responses including URL, time and headers
+
+    Parameters:
+    driver (object): Webdriver
+    """
+    requests = []
+    for request in driver.requests:
+        request_data = {"request_url": request.url, "time": request.date.timestamp(),
+                        "request_headers": dict(request.headers),
+                        "response_headers": dict(request.response.headers)}
+        requests.append(request_data)
+    return requests
 
 
 def crawl_url(url, output_dir='', mobile=False, headless=False):
@@ -64,9 +80,10 @@ def crawl_url(url, output_dir='', mobile=False, headless=False):
     mobile (bool): Run with a mobile client
     headless (bool): To run in headless mode
     """
+    website_domain = get_fld(url)
+    crawl_mode = 'mobile' if mobile else 'desktop'
 
-    fld = get_fld(url)
-    output_filename = f"{output_dir}{fld}_{'mobile' if mobile else 'desktop'}_"
+    output_filename = f"{output_dir}{website_domain}_{crawl_mode}_"
     output_filename = path.join(DATA_PATH, output_filename)
 
     chrome_options = Options()
@@ -79,24 +96,24 @@ def crawl_url(url, output_dir='', mobile=False, headless=False):
     logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
     driver.get(url)
+    requests = get_requests(driver)
     create_screenshot(driver, output_filename, mobile=mobile)
     cookies = driver.get_cookies()
     create_screenshot(driver, output_filename, mobile=mobile, post_consent=True)
-
     driver.close()
+
     logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
     output = {
-        "website_domain": None,
-        "crawl_mode": None,
+        "website_domain": website_domain,
+        "crawl_mode": crawl_mode,
         "post_pageload_url": None,
         "pageload_start_ts": None,
         "pageload_end_ts": None,
         "consent_status": None,
-        "requests": [None],
+        "requests": requests,
         "load_time": None,
         "cookies": cookies,
     }
-
     create_json(output, output_filename)
 
 
