@@ -12,10 +12,10 @@ from selenium.webdriver.chrome.options import Options
 class Crawler:
     def __init__(self, headless=True, mobile=False, output_dir=""):
         """
-        Initializes a crawler
-        :param headless:
-        :param mobile:
-        :param output_dir:
+        Initializes the crawler
+        :param headless: run the browser headless or not
+        :param mobile: run the browser as mobile device
+        :param output_dir: folder to put the output files
         """
         self.headless = headless
         self.mobile = mobile
