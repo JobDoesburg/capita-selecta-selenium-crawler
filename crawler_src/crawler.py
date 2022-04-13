@@ -42,7 +42,11 @@ class Crawler:
         if self.mobile:
             mobile_emulation = {"deviceName": "Nexus 5"}
             chrome_options.add_experimental_option("mobileEmulation", mobile_emulation)
-        self.driver = webdriver.Chrome(options=chrome_options)
+
+        desired_capabilities = {"acceptInsecureCerts": True}
+        self.driver = webdriver.Chrome(
+            options=chrome_options, desired_capabilities=desired_capabilities
+        )
 
     @property
     def crawl_mode(self):
@@ -103,6 +107,17 @@ class Crawler:
 
         logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
         self.driver.get(url)
+
+        first_request = self.driver.requests[0]  # Note, this does not always result in the correct request. In headful mode, Chrome can add additional requests here. Also think about 301/302 responses
+        certificate = first_request.cert
+
+        if first_request.response is None:
+            logging.warning("Domain doesn't exist")
+            return
+
+        if certificate["expired"] is True:
+            logging.warning("SSL certificate is expired")
+            return
 
         self.create_screenshot()
 
