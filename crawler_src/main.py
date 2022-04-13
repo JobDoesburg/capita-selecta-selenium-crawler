@@ -4,7 +4,7 @@ import argparse
 import csv
 import logging
 
-from crawler_src.crawler import Crawler
+from crawler import Crawler
 
 DATA_PATH = path.join(path.dirname(path.abspath(__file__)), "..", "crawl_data")
 if not path.exists(DATA_PATH):
