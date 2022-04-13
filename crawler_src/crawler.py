@@ -10,7 +10,7 @@ from selenium.webdriver.chrome.options import Options
 
 
 class Crawler:
-    def __init__(self, headless=True, mobile=False, output_dir=""):
+    def __init__(self, headless=True, mobile=False, output_dir="crawl_data"):
         """
         Initializes the crawler
         :param headless: run the browser headless or not
