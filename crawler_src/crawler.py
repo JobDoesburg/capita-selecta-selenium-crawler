@@ -9,6 +9,19 @@ from seleniumwire import webdriver
 from selenium.webdriver.chrome.options import Options
 
 
+def shorten_http_headers(headers):
+    """
+    Shorten header values to 512 characters
+    :return: HTTPheaders object with shortened header values
+    """
+    for key in headers:
+        value = headers[key]
+        if len(value) > 512:
+            del headers[key]
+            headers[key] = value[0:512]
+    return headers
+
+
 class Crawler:
     def __init__(self, headless=True, mobile=False, output_dir=""):
         """
@@ -43,17 +56,6 @@ class Crawler:
     def output_file_prefix(self):
         return f"{self.current_domain}_{self.crawl_mode}"
 
-    def shorten_http_headers(self, headers):
-        """
-        Shorten header values to 512 characters
-        :return: HTTPheaders object with shortened header values
-        """
-        for key in headers:
-            value = headers[key]
-            del headers[key]
-            headers[key] = value[0:512]
-        return headers
-
     def get_requests(self):
         """
         Get the HTTP requests and responses including URL, time and headers.
@@ -65,8 +67,8 @@ class Crawler:
             request_data = {
                 "request_url": request.url,
                 "time": request.date.timestamp(),
-                "request_headers": dict(self.shorten_http_headers(request.headers)),
-                "response_headers": dict(self.shorten_http_headers(request.response.headers)),
+                "request_headers": dict(shorten_http_headers(request.headers)),
+                "response_headers": dict(shorten_http_headers(request.response.headers)),
             }
             requests.append(request_data)
         return requests
