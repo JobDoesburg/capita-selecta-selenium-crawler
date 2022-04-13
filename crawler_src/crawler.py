@@ -43,18 +43,30 @@ class Crawler:
     def output_file_prefix(self):
         return f"{self.current_domain}_{self.crawl_mode}"
 
+    def shorten_http_headers(self, headers):
+        """
+        Shorten header values to 512 characters
+        :return: HTTPheaders object with shortened header values
+        """
+        for key in headers:
+            value = headers[key]
+            del headers[key]
+            headers[key] = value[0:512]
+        return headers
+
     def get_requests(self):
         """
         Get the HTTP requests and responses including URL, time and headers.
         :return: All HTTP requests that were created.
         """
         requests = []
+
         for request in self.driver.requests:
             request_data = {
                 "request_url": request.url,
                 "time": request.date.timestamp(),
-                "request_headers": dict(request.headers),
-                "response_headers": dict(request.response.headers),
+                "request_headers": dict(self.shorten_http_headers(request.headers)),
+                "response_headers": dict(self.shorten_http_headers(request.response.headers)),
             }
             requests.append(request_data)
         return requests
