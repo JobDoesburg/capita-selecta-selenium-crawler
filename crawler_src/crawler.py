@@ -4,6 +4,7 @@ from tld import get_fld
 import logging
 import time
 import json
+import datetime
 
 from seleniumwire import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -101,8 +102,10 @@ class Crawler:
         """
         self.current_url = url
 
-        logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+        # Compute the time it takes to load the page
+        start_time = time.mktime(time.localtime())
         self.driver.get(url)
+        end_time = time.mktime(time.localtime())
 
         self.create_screenshot()
 
@@ -120,11 +123,11 @@ class Crawler:
             "website_domain": self.current_domain,
             "crawl_mode": self.crawl_mode,
             "post_pageload_url": None,
-            "pageload_start_ts": None,
-            "pageload_end_ts": None,
+            "pageload_start_ts": start_time,
+            "pageload_end_ts": end_time,
             "consent_status": None,
             "requests": requests,
-            "load_time": None,
+            "load_time": end_time-start_time,
             "cookies": cookies,
         }
         self.create_json(output)
