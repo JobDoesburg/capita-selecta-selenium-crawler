@@ -107,6 +107,8 @@ class Crawler:
         self.driver.get(url)
         end_time = time.mktime(time.localtime())
 
+        post_pageload_url = self.driver.current_url
+
         self.create_screenshot()
 
         requests = self.get_requests()
@@ -122,7 +124,7 @@ class Crawler:
         output = {
             "website_domain": self.current_domain,
             "crawl_mode": self.crawl_mode,
-            "post_pageload_url": None,
+            "post_pageload_url": post_pageload_url,
             "pageload_start_ts": start_time,
             "pageload_end_ts": end_time,
             "consent_status": None,
