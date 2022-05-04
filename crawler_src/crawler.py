@@ -4,7 +4,7 @@ from tld import get_fld
 import logging
 import time
 import json
-import datetime
+from urllib.parse import urlparse
 
 from seleniumwire import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -21,6 +21,44 @@ def shorten_http_headers(headers):
             del headers[key]
             headers[key] = value[0:512]
     return headers
+
+
+def check_certificate_host(url, certificate):
+    """
+    Check if the certificate is valid for this url
+    :param url: the url to verify against
+    :param certificate: the certificate that is presented
+    :return: True if the certificate is valid for this url, or false if it is the wrong host
+    """
+    full_domain = urlparse(url).netloc.split(".")
+    cert_domain = certificate["cn"].decode("utf-8").split(".")
+
+    while len(full_domain) > 0:
+        full_domain_part = full_domain.pop()
+        try:
+            cert_domain_part = cert_domain.pop()
+        except IndexError:
+            return False
+        if cert_domain_part is None or (
+            cert_domain_part != "*" and cert_domain_part != full_domain_part
+        ):
+            return False
+
+    if len(cert_domain) == 0 or cert_domain[0] == "*":
+        return True
+
+    return False
+
+
+def get_certificate_issuer_cn(cert):
+    """
+    Get the issuer CN of a certificate
+    :param cert: the certificate
+    :return: the issuer CN
+    """
+    for key, val in cert["issuer"]:
+        if key == b"CN":
+            return val
 
 
 class Crawler:
@@ -73,7 +111,9 @@ class Crawler:
                 "request_url": request.url,
                 "time": request.date.timestamp(),
                 "request_headers": dict(shorten_http_headers(request.headers)),
-                "response_headers": dict(shorten_http_headers(request.response.headers)),
+                "response_headers": dict(
+                    shorten_http_headers(request.response.headers)
+                ),
             }
             requests.append(request_data)
         return requests
@@ -113,7 +153,13 @@ class Crawler:
 
         post_pageload_url = self.driver.current_url
 
-        first_request = self.driver.requests[0]  # Note, this does not always result in the correct request. In headful mode, Chrome can add additional requests here. Also think about 301/302 responses
+        if len(self.driver.requests) == 0:
+            logging.error("Timeout")
+            return
+
+        first_request = self.driver.requests[
+            0
+        ]  # Note, this does not always result in the correct request. In headful mode, Chrome can add additional requests here. Also think about 301/302 responses
         certificate = first_request.cert
 
         if first_request.response is None:
@@ -122,7 +168,12 @@ class Crawler:
 
         if certificate["expired"] is True:
             logging.warning("SSL certificate is expired")
-            return
+
+        if certificate["cn"] == get_certificate_issuer_cn(certificate):
+            logging.warning("Self signed certificate")
+
+        if not check_certificate_host(self.current_url, certificate):
+            logging.warning("Wrong host")
 
         self.create_screenshot()
 
@@ -144,7 +195,7 @@ class Crawler:
             "pageload_end_ts": end_time,
             "consent_status": None,
             "requests": requests,
-            "load_time": end_time-start_time,
+            "load_time": end_time - start_time,
             "cookies": cookies,
         }
         self.create_json(output)
