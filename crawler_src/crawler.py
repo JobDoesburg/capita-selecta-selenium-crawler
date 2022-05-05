@@ -25,7 +25,7 @@ def shorten_http_headers(headers):
 
 def check_certificate_host(url, certificate):
     """
-    Check if the certificate is valid for this url
+    Check if the certificate is valid for this url. See RFC 2818.
     :param url: the url to verify against
     :param certificate: the certificate that is presented
     :return: True if the certificate is valid for this url, or false if it is the wrong host
@@ -157,9 +157,11 @@ class Crawler:
             logging.error("Timeout")
             return
 
-        first_request = self.driver.requests[
-            0
-        ]  # Note, this does not always result in the correct request. In headful mode, Chrome can add additional requests here. Also think about 301/302 responses
+        first_request = self.driver.requests[0]
+        # Note, this does not always result in the correct request.
+        # In headful mode, Chrome can add additional requests here.
+        # Also think about 301/302 responses
+
         certificate = first_request.cert
 
         if first_request.response is None:
