@@ -14,7 +14,18 @@ function saveFingerprint(width, height, context, url) {
 
     var img = document.createElement('img');
     img.src = url;
-    img.callee = JSON.stringify(document.currentScript);
+
+    const trace = new Error().stack.split('\n');
+    var resource_trace;
+    for (var i = 2; i < trace.length; i++) {
+    	const location = trace[i];
+    	if (!location.includes('toDataURL') && !location.includes('getImageData')) {
+      	resource_trace = location;
+        break;
+      };
+    };
+    img.resource_url = resource_trace.match(/\(([^()]+)\)/)[1];
+
     img.classList.add('canvas_img_crawler');
     document.body.appendChild(img);
 };
