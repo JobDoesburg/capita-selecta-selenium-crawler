@@ -144,8 +144,9 @@ class Crawler:
 
         for i, image in enumerate(images):
             header, img_base64 = image.get_attribute('src').split(',')
-            callee = image.get_attribute('callee')
-            print(callee)
+            # TODO: Communicate fingerprinting script URL and save it
+            # TODO: Merge output in JSON object for easier post processing
+            # callee = image.get_attribute('callee')
 
             extension = 'png'
             if 'jpeg' in header or 'jpg' in header:
