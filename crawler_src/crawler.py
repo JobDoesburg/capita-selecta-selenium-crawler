@@ -142,11 +142,13 @@ class Crawler:
     def capture_canvas_images(self):
         images = self.driver.find_elements_by_class_name("canvas_img_crawler")
 
+        output = []
         for i, image in enumerate(images):
             header, img_base64 = image.get_attribute('src').split(',')
             # TODO: Communicate fingerprinting script URL and save it
             # TODO: Merge output in JSON object for easier post processing
             # callee = image.get_attribute('callee')
+            resource_url = ''
 
             extension = 'png'
             if 'jpeg' in header or 'jpg' in header:
@@ -157,6 +159,13 @@ class Crawler:
             file_path = path.join(self.output_dir, f"{self.output_file_prefix}_canvas_capture_{i}.{extension}")
             with open(file_path, 'wb') as file:
                 file.write(img_decoded)
+
+            output.append({
+                'canvas_fingerprint_image': f"{self.output_file_prefix}_canvas_capture_{i}.{extension}",
+                'fingerprint_script_resource_url': resource_url
+            })
+
+        return output
 
     def create_json(self, output):
         """
@@ -207,7 +216,7 @@ class Crawler:
         if not check_certificate_host(self.current_url, certificate):
             logging.warning("Wrong host")
 
-        self.capture_canvas_images()
+        canvas_image_data = self.capture_canvas_images()
         self.create_screenshot()
 
         requests = self.get_requests()
@@ -230,6 +239,7 @@ class Crawler:
             "requests": requests,
             "load_time": end_time - start_time,
             "cookies": cookies,
+            "canvas_image_data": canvas_image_data
         }
         self.create_json(output)
 
