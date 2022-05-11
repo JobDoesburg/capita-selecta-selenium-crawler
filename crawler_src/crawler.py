@@ -1,7 +1,6 @@
 from os import path
 
 import tqdm
-from interruptingcow import timeout
 from tld import get_fld
 import logging
 import time
@@ -11,7 +10,33 @@ from urllib.parse import urlparse
 
 from seleniumwire import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import WebDriverException
+
+GLOBAL_SELECTOR = "a, button, div, span, form, p"
+ACCEPTWORDS = path.join("accept_words.txt")
+TRY_SCROLL = True
+
+
+def get_signature(element):
+    def props_to_dict(e):
+        props = {"tag": e.tag_name}
+        for attr in e.get_property("attributes"):
+            props[attr["name"]] = attr["value"]
+        return props
+
+    signature = []
+    current = element
+    while True:
+        signature.insert(0, props_to_dict(current))
+
+        if current.tag_name == "html":
+            break
+        current = current.find_element(by="XPATH", value="..")
+        if current is None:
+            break
+
+    return signature
 
 
 class DomainDoesNotExist(Exception):
@@ -123,6 +148,7 @@ class Crawler:
         self.driver = webdriver.Chrome(
             options=chrome_options, desired_capabilities=desired_capabilities
         )
+        self.driver.set_page_load_timeout(self.timeout)
 
     @property
     def crawl_mode(self):
@@ -222,6 +248,85 @@ class Crawler:
         with open(filename, "w") as outfile:
             json.dump(output, outfile, indent=4)
 
+    def click_banner(self):
+        accept_words_list = set()
+        with open(ACCEPTWORDS, "r", encoding="utf-8") as accept_words_file:
+            lines = accept_words_file.read().splitlines()
+        for w in lines:
+            if not w.startswith("#") and not w == "":
+                accept_words_list.add(w)
+
+        banner_data_return = {"matched_containers": [], "candidate_elements": []}
+        contents = self.driver.find_elements_by_css_selector(GLOBAL_SELECTOR)
+
+        candidate = None
+
+        for c in contents:
+            try:
+                if c.text.lower().strip(" ✓›!\n") in accept_words_list:
+                    candidate = c
+                    banner_data_return["candidate_elements"].append(
+                        {
+                            "id": c.id,
+                            "tag_name": c.tag_name,
+                            "text": c.text,
+                            "size": c.size,
+                            "signature": get_signature(c),
+                        }
+                    )
+                    break
+            except:
+                logging.info("Consent:Exception in processing element: {}".format(c.id))
+
+        # Click the candidate
+        if candidate is not None:
+            try:  # in some pages element is not clickable
+                logging.info(
+                    "Consent:Clicking text: {}".format(
+                        candidate.text.lower().strip(" ✓›!\n")
+                    )
+                )
+                candidate.click()
+                banner_data_return["clicked_element"] = candidate.id
+                logging.info("Consent:Clicked: {}".format(candidate.id))
+
+            except:
+                logging.info("Consent:Exception in candidate click")
+        else:
+            logging.info("Consent:Warning, no matching candidate")
+
+        return banner_data_return
+
+    def accept_consent(self):
+        # Click Banner
+        logging.info("Consent:Searching Banner")
+        banner_data = self.click_banner()
+
+        if "clicked_element" not in banner_data:
+            iframe_contents = self.driver.find_elements_by_css_selector("iframe")
+            for content in iframe_contents:
+                logging.info("Consent:Switching to frame: {}".format(content.id))
+                try:
+                    self.driver.switch_to.frame(content)
+                    banner_data = self.click_banner()
+                    self.driver.switch_to.default_content()
+                    if "clicked_element" in banner_data:
+                        break
+                except NoSuchFrameException:
+                    self.driver.switch_to.default_content()
+                    logging.info("Consent:Error in switching to frame")
+
+        if not "clicked_element" in banner_data and TRY_SCROLL:
+            logging.info("Consent:Trying with scroll")
+            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+        time.sleep(1)
+        logging.info("Consent:URL after click: {}".format(self.driver.current_url))
+
+        # Clean last page
+        # self.driver.get("about:blank")
+
+        return "clicked_element" in banner_data
+
     def crawl_url(self, url, rank=None):
         """
         Crawls a single url
@@ -229,12 +334,18 @@ class Crawler:
         """
         self.start_driver()
         logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+        tls_failure = None
+
+        start_time = time.mktime(time.localtime())
 
         try:
-            post_pageload_url, start_time, end_time, tls_failure = self._crawl_url(url)
+            self._crawl_url(url)
         except DomainDoesNotExist:
+            logging.error("Domain does not exist. Skipping this domain.")
+            self.driver.close()
             return
         except TimeoutError:
+            logging.error(f"Timeout occurred")
             output = {
                 "website_domain": self.current_domain,
                 "rank": rank,
@@ -254,9 +365,16 @@ class Crawler:
                 },
             }
             self.create_json(output)
+            self.driver.close()
             return
+        except TLSError as e:
+            tls_failure = str(e)
+            logging.warning(f"TLS error occurred: {tls_failure}")
+
+        end_time = time.mktime(time.localtime())
 
         (
+            post_pageload_url,
             requests,
             cookies,
             canvas_image_data,
@@ -280,10 +398,11 @@ class Crawler:
             "failure_status": {
                 "timeout": False,
                 "TLS": str(tls_failure) if tls_failure else None,
-                "consent": consent_failure
-            }
+                "consent": consent_failure,
+            },
         }
         self.create_json(output)
+        self.driver.close()
 
     def _crawl_url(self, url):
         """
@@ -295,13 +414,8 @@ class Crawler:
         self.prepare_canvas_capture()
 
         try:
-            with timeout(self.timeout, exception=RuntimeError):
-                # Compute the time it takes to load the page
-                start_time = time.mktime(time.localtime())
-                self.driver.get(url)
-                end_time = time.mktime(time.localtime())
-        except (RuntimeError, WebDriverException) as e:
-            logging.error(f"Timeout: {e}")
+            self.driver.get(url)
+        except WebDriverException as e:
             raise TimeoutError()
 
         if len(self.driver.requests) == 0:
@@ -317,41 +431,38 @@ class Crawler:
             logging.warning("Domain doesn't exist")
             raise DomainDoesNotExist()
 
-        tls_failure = None
         certificate = first_request.cert
         if certificate["expired"] is True:
-            tls_failure = CertificateExpired()
-            logging.warning("SSL certificate is expired")
+            raise CertificateExpired()
 
         if certificate["cn"] == get_certificate_issuer_cn(certificate):
-            tls_failure = SelfSignedCertificate()
-            logging.warning("Self signed certificate")
+            raise SelfSignedCertificate()
 
         if not check_certificate_host(self.current_url, certificate):
-            tls_failure = WrongHostCertificate()
-            logging.warning("Certificate wrong host")
-
-        post_pageload_url = self.driver.current_url
-
-        return post_pageload_url, start_time, end_time, tls_failure
+            raise WrongHostCertificate()
 
     def _interact_with_page(self):
-        canvas_image_data = self.capture_canvas_images()
-
+        time.sleep(10)
         self.create_screenshot()
-
-        # TODO: accept cookies
-        consent_failure = False
+        try:
+            accepted_tracking = self.accept_consent()
+        except Exception as e:
+            logging.warning(f"Accepting tracking caused crash. Exception: {e}")
+            accepted_tracking = False
+        time.sleep(10)
 
         self.create_screenshot(post_consent=True)
+        post_pageload_url = self.driver.current_url
+        canvas_image_data = self.capture_canvas_images()
         requests = self.get_requests()
         cookies = self.driver.get_cookies()
 
         return (
+            post_pageload_url,
             requests,
             cookies,
             canvas_image_data,
-            consent_failure,
+            accepted_tracking,
         )
 
     def crawl_urls(self, urls):
@@ -362,5 +473,9 @@ class Crawler:
         with tqdm.tqdm(urls) as urls_progress:
             for i, url in urls_progress:
                 url = f"https://{url}"
-                self.crawl_url(url, rank=i)
                 urls_progress.set_description(f"Crawling {url}")
+                try:
+                    self.crawl_url(url, rank=i)
+                except Exception as e:
+                    logging.error(f"Something went wrong during crawling of {url}: {e}")
+                    continue
