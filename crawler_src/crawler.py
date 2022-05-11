@@ -4,6 +4,7 @@ from tld import get_fld
 import logging
 import time
 import json
+import base64
 from urllib.parse import urlparse
 
 from seleniumwire import webdriver
@@ -82,7 +83,7 @@ class Crawler:
             mobile_emulation = {"deviceName": "Nexus 5"}
             chrome_options.add_experimental_option("mobileEmulation", mobile_emulation)
 
-        desired_capabilities = {"acceptInsecureCerts": True}
+        desired_capabilities = {"acceptInsecureCerts": True, "pageLoadStrategy": "eager"}
         self.driver = webdriver.Chrome(
             options=chrome_options, desired_capabilities=desired_capabilities
         )
@@ -111,9 +112,10 @@ class Crawler:
                 "request_url": request.url,
                 "time": request.date.timestamp(),
                 "request_headers": dict(shorten_http_headers(request.headers)),
-                "response_headers": dict(
-                    shorten_http_headers(request.response.headers)
-                ),
+                # TODO: Fix (the object does not appear to have repsonse headers)
+                # "response_headers": dict(
+                #     shorten_http_headers(request.response.headers)
+                # ),
             }
             requests.append(request_data)
         return requests
@@ -130,6 +132,38 @@ class Crawler:
 
         self.driver.save_screenshot(filename)
 
+    def prepare_canvas_capture(self):
+        file_path = path.join(path.dirname(path.abspath(__file__)), './js/HTMLCanvasElement.js')
+        with open(file_path, 'r') as file:
+            js = file.read().replace('\n', '')
+
+        self.driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': js})
+
+    def capture_canvas_images(self):
+        images = self.driver.find_elements_by_class_name("canvas_img_crawler")
+
+        output = []
+        for i, image in enumerate(images):
+            header, img_base64 = image.get_attribute('src').split(',')
+            resource_url = image.get_attribute('resource_url')
+
+            extension = 'png'
+            if 'jpeg' in header or 'jpg' in header:
+                extension = 'jpg'
+
+            img_decoded = base64.b64decode(img_base64)
+
+            file_path = path.join(self.output_dir, f"{self.output_file_prefix}_canvas_capture_{i}.{extension}")
+            with open(file_path, 'wb') as file:
+                file.write(img_decoded)
+
+            output.append({
+                'canvas_fingerprint_image': f"{self.output_file_prefix}_canvas_capture_{i}.{extension}",
+                'fingerprint_script_resource_url': resource_url
+            })
+
+        return output
+
     def create_json(self, output):
         """
         Create a json file containing crawler output
@@ -144,7 +178,9 @@ class Crawler:
         Crawls a single url
         :param url: The url to crawl
         """
+        logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
         self.current_url = url
+        self.prepare_canvas_capture()
 
         # Compute the time it takes to load the page
         start_time = time.mktime(time.localtime())
@@ -177,6 +213,7 @@ class Crawler:
         if not check_certificate_host(self.current_url, certificate):
             logging.warning("Wrong host")
 
+        canvas_image_data = self.capture_canvas_images()
         self.create_screenshot()
 
         requests = self.get_requests()
@@ -199,6 +236,7 @@ class Crawler:
             "requests": requests,
             "load_time": end_time - start_time,
             "cookies": cookies,
+            "canvas_image_data": canvas_image_data
         }
         self.create_json(output)
 
