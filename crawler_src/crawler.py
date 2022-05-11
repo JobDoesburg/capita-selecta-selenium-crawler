@@ -189,8 +189,10 @@ class Crawler:
 
         post_pageload_url = self.driver.current_url
 
+        timeout_failure = False
         if len(self.driver.requests) == 0:
             logging.error("Timeout")
+            timeout_failure = True
             return
 
         first_request = self.driver.requests[0]
@@ -199,19 +201,22 @@ class Crawler:
         # Also think about 301/302 responses
 
         certificate = first_request.cert
-
         if first_request.response is None:
             logging.warning("Domain doesn't exist")
             return
 
+        TLS_failure = None
         if certificate["expired"] is True:
-            logging.warning("SSL certificate is expired")
+            TLS_failure = "SSL certificate is expired"
+            logging.warning(TLS_failure)
 
         if certificate["cn"] == get_certificate_issuer_cn(certificate):
-            logging.warning("Self signed certificate")
+            TLS_failure = "Self signed certificate"
+            logging.warning(TLS_failure)
 
         if not check_certificate_host(self.current_url, certificate):
-            logging.warning("Wrong host")
+            TLS_failure = "Wrong host"
+            logging.warning(TLS_failure)
 
         canvas_image_data = self.capture_canvas_images()
         self.create_screenshot()
@@ -220,6 +225,7 @@ class Crawler:
         cookies = self.driver.get_cookies()
 
         # TODO: accept cookies
+        consent_failure = False
 
         self.create_screenshot(post_consent=True)
 
@@ -236,7 +242,12 @@ class Crawler:
             "requests": requests,
             "load_time": end_time - start_time,
             "cookies": cookies,
-            "canvas_image_data": canvas_image_data
+            "canvas_image_data": canvas_image_data,
+            "failure_status": {
+                "timeout": timeout_failure,
+                "TLS:" TLS_failure,
+                "consent": consent_failure
+            }
         }
         self.create_json(output)
 
