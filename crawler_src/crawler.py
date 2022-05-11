@@ -222,7 +222,7 @@ class Crawler:
         with open(filename, "w") as outfile:
             json.dump(output, outfile, indent=4)
 
-    def crawl_url(self, url):
+    def crawl_url(self, url, rank=None):
         """
         Crawls a single url
         :param url: The url to crawl
@@ -237,6 +237,7 @@ class Crawler:
         except TimeoutError:
             output = {
                 "website_domain": self.current_domain,
+                "rank": rank,
                 "crawl_mode": self.crawl_mode,
                 "post_pageload_url": None,
                 "pageload_start_ts": None,
@@ -266,6 +267,7 @@ class Crawler:
 
         output = {
             "website_domain": self.current_domain,
+            "rank": rank,
             "crawl_mode": self.crawl_mode,
             "post_pageload_url": post_pageload_url,
             "pageload_start_ts": start_time,
@@ -360,5 +362,5 @@ class Crawler:
         with tqdm.tqdm(urls) as urls_progress:
             for i, url in urls_progress:
                 url = f"https://{url}"
-                self.crawl_url(url)
+                self.crawl_url(url, rank=i)
                 urls_progress.set_description(f"Crawling {url}")
