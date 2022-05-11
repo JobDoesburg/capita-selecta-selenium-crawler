@@ -1,7 +1,6 @@
 from os import path
 
 import tqdm
-from interruptingcow import timeout
 from tld import get_fld
 import logging
 import time
@@ -123,6 +122,7 @@ class Crawler:
         self.driver = webdriver.Chrome(
             options=chrome_options, desired_capabilities=desired_capabilities
         )
+        self.driver.set_page_load_timeout(self.timeout)
 
     @property
     def crawl_mode(self):
@@ -307,11 +307,8 @@ class Crawler:
         self.prepare_canvas_capture()
 
         try:
-            with timeout(self.timeout, exception=RuntimeError):
-                # Compute the time it takes to load the page
-                self.driver.get(url)
-        except (RuntimeError, WebDriverException) as e:
-            logging.error(f"Timeout: {e}")
+            self.driver.get(url)
+        except WebDriverException as e:
             raise TimeoutError()
 
         if len(self.driver.requests) == 0:
