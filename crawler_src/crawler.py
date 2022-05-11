@@ -475,5 +475,5 @@ class Crawler:
                 try:
                     self.crawl_url(url)
                 except Exception as e:
-                    logging.error(e)
+                    logging.error(f"Something went wrong during crawling of {url}: {e}")
                     continue
