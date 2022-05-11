@@ -256,3 +256,6 @@ zustimmen und schließen
 zustimmen und weiter
 Принять
 Я согласен
+accepteren
+ik ga akkoord
+akkoord
