@@ -1,5 +1,7 @@
 from os import path
 
+import tqdm
+from interruptingcow import timeout
 from tld import get_fld
 import logging
 import time
@@ -9,6 +11,7 @@ from urllib.parse import urlparse
 
 from seleniumwire import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import WebDriverException
 
 
 def shorten_http_headers(headers):
@@ -63,19 +66,24 @@ def get_certificate_issuer_cn(cert):
 
 
 class Crawler:
-    def __init__(self, headless=True, mobile=False, output_dir="crawl_data"):
+    def __init__(
+        self, headless=True, mobile=False, output_dir="crawl_data", pageload_timeout=10
+    ):
         """
         Initializes the crawler
         :param headless: run the browser headless or not
         :param mobile: run the browser as mobile device
         :param output_dir: folder to put the output files
         """
+        self.timeout = pageload_timeout
         self.headless = headless
         self.mobile = mobile
         self.output_dir = output_dir
 
         self.current_url = None
+        self.driver = None
 
+    def start_driver(self):
         chrome_options = Options()
         if self.headless:
             chrome_options.add_argument("--headless")
@@ -83,7 +91,10 @@ class Crawler:
             mobile_emulation = {"deviceName": "Nexus 5"}
             chrome_options.add_experimental_option("mobileEmulation", mobile_emulation)
 
-        desired_capabilities = {"acceptInsecureCerts": True, "pageLoadStrategy": "eager"}
+        desired_capabilities = {
+            "acceptInsecureCerts": True,
+            "pageLoadStrategy": "eager",
+        }
         self.driver = webdriver.Chrome(
             options=chrome_options, desired_capabilities=desired_capabilities
         )
@@ -133,34 +144,47 @@ class Crawler:
         self.driver.save_screenshot(filename)
 
     def prepare_canvas_capture(self):
-        file_path = path.join(path.dirname(path.abspath(__file__)), './js/HTMLCanvasElement.js')
-        with open(file_path, 'r') as file:
-            js = file.read().replace('\n', '')
+        file_path = path.join(
+            path.dirname(path.abspath(__file__)), "./js/HTMLCanvasElement.js"
+        )
+        with open(file_path, "r") as file:
+            js = file.read().replace("\n", "")
 
-        self.driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': js})
+        self.driver.execute_cdp_cmd(
+            "Page.addScriptToEvaluateOnNewDocument", {"source": js}
+        )
 
     def capture_canvas_images(self):
         images = self.driver.find_elements_by_class_name("canvas_img_crawler")
 
         output = []
         for i, image in enumerate(images):
-            header, img_base64 = image.get_attribute('src').split(',')
-            resource_url = image.get_attribute('resource_url')
+            img_src = image.get_attribute("src")
+            if not img_src:
+                continue
 
-            extension = 'png'
-            if 'jpeg' in header or 'jpg' in header:
-                extension = 'jpg'
+            header, img_base64 = img_src.split(",")
+            resource_url = image.get_attribute("resource_url")
+
+            extension = "png"
+            if "jpeg" in header or "jpg" in header:
+                extension = "jpg"
 
             img_decoded = base64.b64decode(img_base64)
 
-            file_path = path.join(self.output_dir, f"{self.output_file_prefix}_canvas_capture_{i}.{extension}")
-            with open(file_path, 'wb') as file:
+            file_path = path.join(
+                self.output_dir,
+                f"{self.output_file_prefix}_canvas_capture_{i}.{extension}",
+            )
+            with open(file_path, "wb") as file:
                 file.write(img_decoded)
 
-            output.append({
-                'canvas_fingerprint_image': f"{self.output_file_prefix}_canvas_capture_{i}.{extension}",
-                'fingerprint_script_resource_url': resource_url
-            })
+            output.append(
+                {
+                    "canvas_fingerprint_image": f"{self.output_file_prefix}_canvas_capture_{i}.{extension}",
+                    "fingerprint_script_resource_url": resource_url,
+                }
+            )
 
         return output
 
@@ -178,13 +202,27 @@ class Crawler:
         Crawls a single url
         :param url: The url to crawl
         """
+        self.start_driver()
+
         logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
         self.current_url = url
         self.prepare_canvas_capture()
 
         # Compute the time it takes to load the page
         start_time = time.mktime(time.localtime())
-        self.driver.get(url)
+
+        try:
+            with timeout(self.timeout, exception=RuntimeError):
+                self.driver.get(url)
+        except WebDriverException as e:
+            logging.error(f"Timeout: {e}")
+            timeout_failure = True
+            return
+        except RuntimeError as e:
+            logging.error(f"Timeout")
+            timeout_failure = True
+            return
+
         end_time = time.mktime(time.localtime())
 
         post_pageload_url = self.driver.current_url
@@ -245,9 +283,9 @@ class Crawler:
             "canvas_image_data": canvas_image_data,
             "failure_status": {
                 "timeout": timeout_failure,
-                "TLS:" TLS_failure,
-                "consent": consent_failure
-            }
+                "TLS": TLS_failure,
+                "consent": consent_failure,
+            },
         }
         self.create_json(output)
 
@@ -256,5 +294,8 @@ class Crawler:
         Crawls a list of urls.
         :param urls: The urls to crawl.
         """
-        for url in urls:
-            self.crawl_url(url)
+        with tqdm.tqdm(urls) as urls_progress:
+            for i, url in urls_progress:
+                url = f"https://{url}"
+                self.crawl_url(url)
+                urls_progress.set_description(f"Crawling {url}")
