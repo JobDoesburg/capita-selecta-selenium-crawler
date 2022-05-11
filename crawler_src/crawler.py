@@ -10,7 +10,33 @@ from urllib.parse import urlparse
 
 from seleniumwire import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import WebDriverException
+
+GLOBAL_SELECTOR = "a, button, div, span, form, p"
+ACCEPTWORDS = path.join('accept_words.txt')
+TRY_SCROLL = True
+
+
+def get_signature(element):
+    def props_to_dict(e):
+        props = {"tag": e.tag_name}
+        for attr in e.get_property('attributes'):
+            props[attr['name']] = attr['value']
+        return props
+
+    signature = []
+    current = element
+    while True:
+        signature.insert(0, props_to_dict(current))
+
+        if current.tag_name == "html":
+            break
+        current = current.find_element(by='XPATH', value='..')
+        if current is None:
+            break
+
+    return signature
 
 
 class DomainDoesNotExist(Exception):
@@ -222,6 +248,78 @@ class Crawler:
         with open(filename, "w") as outfile:
             json.dump(output, outfile, indent=4)
 
+    def click_banner(self):
+        accept_words_list = set()
+        with open(ACCEPTWORDS, 'r', encoding='utf-8') as accept_words_file:
+            lines = accept_words_file.read().splitlines()
+        for w in lines:
+            if not w.startswith("#") and not w == "":
+                accept_words_list.add(w)
+
+        banner_data_return = {"matched_containers": [], "candidate_elements": []}
+        contents = self.driver.find_elements_by_css_selector(GLOBAL_SELECTOR)
+
+        candidate = None
+
+        for c in contents:
+            try:
+                if c.text.lower().strip(" ✓›!\n") in accept_words_list:
+                    candidate = c
+                    banner_data_return["candidate_elements"].append({"id": c.id,
+                                                                     "tag_name": c.tag_name,
+                                                                     "text": c.text,
+                                                                     "size": c.size,
+                                                                     "signature": get_signature(c),
+                                                                     })
+                    break
+            except:
+                logging.info("Consent:Exception in processing element: {}".format(c.id))
+
+        # Click the candidate
+        if candidate is not None:
+            try:  # in some pages element is not clickable
+                logging.info("Consent:Clicking text: {}".format(candidate.text.lower().strip(" ✓›!\n")))
+                candidate.click()
+                banner_data_return["clicked_element"] = candidate.id
+                logging.info("Consent:Clicked: {}".format(candidate.id))
+
+            except:
+                logging.info("Consent:Exception in candidate click")
+        else:
+            logging.info("Consent:Warning, no matching candidate")
+
+        return banner_data_return
+
+    def accept_consent(self):
+        # Click Banner
+        logging.info("Consent:Searching Banner")
+        banner_data = self.click_banner()
+
+        if "clicked_element" not in banner_data:
+            iframe_contents = self.driver.find_elements_by_css_selector("iframe")
+            for content in iframe_contents:
+                logging.info("Consent:Switching to frame: {}".format(content.id))
+                try:
+                    self.driver.switch_to.frame(content)
+                    banner_data = self.click_banner()
+                    self.driver.switch_to.default_content()
+                    if "clicked_element" in banner_data:
+                        break
+                except NoSuchFrameException:
+                    self.driver.switch_to.default_content()
+                    logging.info("Consent:Error in switching to frame")
+
+        if not "clicked_element" in banner_data and TRY_SCROLL:
+            logging.info("Consent:Trying with scroll")
+            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+        time.sleep(1)
+        logging.info("Consent:URL after click: {}".format(self.driver.current_url))
+
+        # Clean last page
+        # self.driver.get("about:blank")
+
+        return "clicked_element" in banner_data
+
     def crawl_url(self, url):
         """
         Crawls a single url
@@ -335,16 +433,18 @@ class Crawler:
             raise WrongHostCertificate()
 
     def _interact_with_page(self):
-        post_pageload_url = self.driver.current_url
-
-        canvas_image_data = self.capture_canvas_images()
-
+        time.sleep(10)
         self.create_screenshot()
-
-        # TODO: accept cookies
-        consent_failure = False
+        try:
+            accepted_tracking = self.accept_consent()
+        except Exception as e:
+            logging.warning(f'Accepting tracking caused crash. Exception: {e}')
+            accepted_tracking = False
+        time.sleep(10)
 
         self.create_screenshot(post_consent=True)
+        post_pageload_url = self.driver.current_url
+        canvas_image_data = self.capture_canvas_images()
         requests = self.get_requests()
         cookies = self.driver.get_cookies()
 
@@ -353,7 +453,7 @@ class Crawler:
             requests,
             cookies,
             canvas_image_data,
-            consent_failure,
+            accepted_tracking,
         )
 
     def crawl_urls(self, urls):
