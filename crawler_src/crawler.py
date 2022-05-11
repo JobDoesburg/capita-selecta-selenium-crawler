@@ -229,12 +229,17 @@ class Crawler:
         """
         self.start_driver()
         logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+        tls_failure = None
+
+        start_time = time.mktime(time.localtime())
 
         try:
-            post_pageload_url, start_time, end_time, tls_failure = self._crawl_url(url)
+            self._crawl_url(url)
         except DomainDoesNotExist:
+            logging.error("Domain does not exist. Skipping this domain.")
             return
         except TimeoutError:
+            logging.error(f"Timeout occurred")
             output = {
                 "website_domain": self.current_domain,
                 "crawl_mode": self.crawl_mode,
@@ -254,8 +259,14 @@ class Crawler:
             }
             self.create_json(output)
             return
+        except TLSError as e:
+            tls_failure = str(e)
+            logging.warning(f"TLS error occurred: {tls_failure}")
+
+        end_time = time.mktime(time.localtime())
 
         (
+            post_pageload_url,
             requests,
             cookies,
             canvas_image_data,
@@ -295,9 +306,7 @@ class Crawler:
         try:
             with timeout(self.timeout, exception=RuntimeError):
                 # Compute the time it takes to load the page
-                start_time = time.mktime(time.localtime())
                 self.driver.get(url)
-                end_time = time.mktime(time.localtime())
         except (RuntimeError, WebDriverException) as e:
             logging.error(f"Timeout: {e}")
             raise TimeoutError()
@@ -315,25 +324,19 @@ class Crawler:
             logging.warning("Domain doesn't exist")
             raise DomainDoesNotExist()
 
-        tls_failure = None
         certificate = first_request.cert
         if certificate["expired"] is True:
-            tls_failure = CertificateExpired()
-            logging.warning("SSL certificate is expired")
+            raise CertificateExpired()
 
         if certificate["cn"] == get_certificate_issuer_cn(certificate):
-            tls_failure = SelfSignedCertificate()
-            logging.warning("Self signed certificate")
+            raise SelfSignedCertificate()
 
         if not check_certificate_host(self.current_url, certificate):
-            tls_failure = WrongHostCertificate()
-            logging.warning("Certificate wrong host")
-
-        post_pageload_url = self.driver.current_url
-
-        return post_pageload_url, start_time, end_time, tls_failure
+            raise WrongHostCertificate()
 
     def _interact_with_page(self):
+        post_pageload_url = self.driver.current_url
+
         canvas_image_data = self.capture_canvas_images()
 
         self.create_screenshot()
@@ -346,6 +349,7 @@ class Crawler:
         cookies = self.driver.get_cookies()
 
         return (
+            post_pageload_url,
             requests,
             cookies,
             canvas_image_data,
