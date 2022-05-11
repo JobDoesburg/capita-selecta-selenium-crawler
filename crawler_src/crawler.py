@@ -237,6 +237,7 @@ class Crawler:
             self._crawl_url(url)
         except DomainDoesNotExist:
             logging.error("Domain does not exist. Skipping this domain.")
+            self.driver.close()
             return
         except TimeoutError:
             logging.error(f"Timeout occurred")
@@ -258,6 +259,7 @@ class Crawler:
                 },
             }
             self.create_json(output)
+            self.driver.close()
             return
         except TLSError as e:
             tls_failure = str(e)
@@ -293,6 +295,7 @@ class Crawler:
             }
         }
         self.create_json(output)
+        self.driver.close()
 
     def _crawl_url(self, url):
         """
