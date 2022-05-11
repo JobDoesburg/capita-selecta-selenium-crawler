@@ -14,15 +14,15 @@ from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import WebDriverException
 
 GLOBAL_SELECTOR = "a, button, div, span, form, p"
-ACCEPTWORDS = path.join('accept_words.txt')
+ACCEPTWORDS = path.join("accept_words.txt")
 TRY_SCROLL = True
 
 
 def get_signature(element):
     def props_to_dict(e):
         props = {"tag": e.tag_name}
-        for attr in e.get_property('attributes'):
-            props[attr['name']] = attr['value']
+        for attr in e.get_property("attributes"):
+            props[attr["name"]] = attr["value"]
         return props
 
     signature = []
@@ -32,7 +32,7 @@ def get_signature(element):
 
         if current.tag_name == "html":
             break
-        current = current.find_element(by='XPATH', value='..')
+        current = current.find_element(by="XPATH", value="..")
         if current is None:
             break
 
@@ -250,7 +250,7 @@ class Crawler:
 
     def click_banner(self):
         accept_words_list = set()
-        with open(ACCEPTWORDS, 'r', encoding='utf-8') as accept_words_file:
+        with open(ACCEPTWORDS, "r", encoding="utf-8") as accept_words_file:
             lines = accept_words_file.read().splitlines()
         for w in lines:
             if not w.startswith("#") and not w == "":
@@ -265,12 +265,15 @@ class Crawler:
             try:
                 if c.text.lower().strip(" ✓›!\n") in accept_words_list:
                     candidate = c
-                    banner_data_return["candidate_elements"].append({"id": c.id,
-                                                                     "tag_name": c.tag_name,
-                                                                     "text": c.text,
-                                                                     "size": c.size,
-                                                                     "signature": get_signature(c),
-                                                                     })
+                    banner_data_return["candidate_elements"].append(
+                        {
+                            "id": c.id,
+                            "tag_name": c.tag_name,
+                            "text": c.text,
+                            "size": c.size,
+                            "signature": get_signature(c),
+                        }
+                    )
                     break
             except:
                 logging.info("Consent:Exception in processing element: {}".format(c.id))
@@ -278,7 +281,11 @@ class Crawler:
         # Click the candidate
         if candidate is not None:
             try:  # in some pages element is not clickable
-                logging.info("Consent:Clicking text: {}".format(candidate.text.lower().strip(" ✓›!\n")))
+                logging.info(
+                    "Consent:Clicking text: {}".format(
+                        candidate.text.lower().strip(" ✓›!\n")
+                    )
+                )
                 candidate.click()
                 banner_data_return["clicked_element"] = candidate.id
                 logging.info("Consent:Clicked: {}".format(candidate.id))
@@ -438,7 +445,7 @@ class Crawler:
         try:
             accepted_tracking = self.accept_consent()
         except Exception as e:
-            logging.warning(f'Accepting tracking caused crash. Exception: {e}')
+            logging.warning(f"Accepting tracking caused crash. Exception: {e}")
             accepted_tracking = False
         time.sleep(10)
 
@@ -464,5 +471,9 @@ class Crawler:
         with tqdm.tqdm(urls) as urls_progress:
             for i, url in urls_progress:
                 url = f"https://{url}"
-                self.crawl_url(url)
                 urls_progress.set_description(f"Crawling {url}")
+                try:
+                    self.crawl_url(url)
+                except Exception as e:
+                    logging.error(e)
+                    continue
