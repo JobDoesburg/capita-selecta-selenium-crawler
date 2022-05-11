@@ -245,7 +245,7 @@ class Crawler:
             "canvas_image_data": canvas_image_data,
             "failure_status": {
                 "timeout": timeout_failure,
-                "TLS:" TLS_failure,
+                "TLS": TLS_failure,
                 "consent": consent_failure
             }
         }
