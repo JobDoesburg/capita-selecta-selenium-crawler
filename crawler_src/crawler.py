@@ -14,7 +14,7 @@ from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import WebDriverException
 
 GLOBAL_SELECTOR = "a, button, div, span, form, p"
-ACCEPTWORDS = path.join("accept_words.txt")
+ACCEPTWORDS = path.join(path.dirname(path.abspath(__file__)), "accept_words.txt")
 TRY_SCROLL = True
 
 
@@ -117,7 +117,12 @@ def get_certificate_issuer_cn(cert):
 
 class Crawler:
     def __init__(
-        self, headless=True, mobile=False, output_dir="crawl_data", pageload_timeout=10
+        self,
+        headless=True,
+        mobile=False,
+        output_dir="crawl_data",
+        pageload_timeout=10,
+        js_load_wait=10,
     ):
         """
         Initializes the crawler
@@ -126,6 +131,8 @@ class Crawler:
         :param output_dir: folder to put the output files
         """
         self.timeout = pageload_timeout
+        self.js_load_wait = js_load_wait
+
         self.headless = headless
         self.mobile = mobile
         self.output_dir = output_dir
@@ -442,14 +449,14 @@ class Crawler:
             raise WrongHostCertificate()
 
     def _interact_with_page(self):
-        time.sleep(10)
+        time.sleep(self.js_load_wait)
         self.create_screenshot()
         try:
             accepted_tracking = self.accept_consent()
         except Exception as e:
             logging.warning(f"Accepting tracking caused crash. Exception: {e}")
             accepted_tracking = False
-        time.sleep(10)
+        time.sleep(self.js_load_wait)
 
         self.create_screenshot(post_consent=True)
         post_pageload_url = self.driver.current_url
