@@ -14,6 +14,29 @@ from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import WebDriverException
 
 
+class DomainDoesNotExist(Exception):
+    pass
+
+
+class TLSError(Exception):
+    pass
+
+
+class SelfSignedCertificate(TLSError):
+    def __str__(self):
+        return "Self-signed certificate"
+
+
+class WrongHostCertificate(TLSError):
+    def __str__(self):
+        return "Wrong host certificate"
+
+
+class CertificateExpired(TLSError):
+    def __str__(self):
+        return "Certificate expired"
+
+
 def shorten_http_headers(headers):
     """
     Shorten header values to 512 characters
@@ -42,6 +65,8 @@ def check_certificate_host(url, certificate):
         try:
             cert_domain_part = cert_domain.pop()
         except IndexError:
+            if full_domain_part == "www" and len(full_domain) == 0:
+                return True
             return False
         if cert_domain_part is None or (
             cert_domain_part != "*" and cert_domain_part != full_domain_part
@@ -202,65 +227,115 @@ class Crawler:
         Crawls a single url
         :param url: The url to crawl
         """
-        self.start_driver()
+        try:
+            logging.info(
+                f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}'
+            )
+            (
+                start_time,
+                end_time,
+                post_pageload_url,
+                requests,
+                cookies,
+                canvas_image_data,
+                tls_failure,
+                consent_failure,
+            ) = self._crawl_url(url)
+            logging.info(
+                f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}'
+            )
+        except DomainDoesNotExist:
+            return
+        except TimeoutError:
+            output = {
+                "website_domain": self.current_domain,
+                "crawl_mode": self.crawl_mode,
+                "post_pageload_url": None,
+                "pageload_start_ts": None,
+                "pageload_end_ts": None,
+                "consent_status": None,
+                "requests": [],
+                "load_time": None,
+                "cookies": None,
+                "canvas_image_data": None,
+                "failure_status": {
+                    "timeout": "timeout",
+                    "TLS": None,
+                    "consent": None,
+                },
+            }
+        else:
+            output = {
+                "website_domain": self.current_domain,
+                "crawl_mode": self.crawl_mode,
+                "post_pageload_url": post_pageload_url,
+                "pageload_start_ts": start_time,
+                "pageload_end_ts": end_time,
+                "consent_status": None,
+                "requests": requests,
+                "load_time": end_time - start_time,
+                "cookies": cookies,
+                "canvas_image_data": canvas_image_data,
+                "failure_status": {
+                    "timeout": None,
+                    "TLS": str(tls_failure) if tls_failure else None,
+                    "consent": consent_failure,
+                },
+            }
+        self.create_json(output)
 
-        logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+    def _crawl_url(self, url):
+        """
+        Crawls a single url, but without logging and analysis
+        :param url: The url to crawl
+        """
         self.current_url = url
+        self.start_driver()
         self.prepare_canvas_capture()
-
-        # Compute the time it takes to load the page
-        start_time = time.mktime(time.localtime())
 
         try:
             with timeout(self.timeout, exception=RuntimeError):
+                # Compute the time it takes to load the page
+                start_time = time.mktime(time.localtime())
                 self.driver.get(url)
-        except WebDriverException as e:
+                end_time = time.mktime(time.localtime())
+        except (RuntimeError, WebDriverException) as e:
             logging.error(f"Timeout: {e}")
-            timeout_failure = True
-            return
-        except RuntimeError as e:
-            logging.error(f"Timeout")
-            timeout_failure = True
-            return
+            raise TimeoutError()
 
-        end_time = time.mktime(time.localtime())
-
-        post_pageload_url = self.driver.current_url
-
-        timeout_failure = False
         if len(self.driver.requests) == 0:
             logging.error("Timeout")
-            timeout_failure = True
-            return
+            raise TimeoutError()
 
         first_request = self.driver.requests[0]
         # Note, this does not always result in the correct request.
         # In headful mode, Chrome can add additional requests here.
         # Also think about 301/302 responses
 
-        certificate = first_request.cert
         if first_request.response is None:
             logging.warning("Domain doesn't exist")
-            return
+            raise DomainDoesNotExist()
 
-        TLS_failure = None
+        tls_failure = None
+        certificate = first_request.cert
         if certificate["expired"] is True:
-            TLS_failure = "SSL certificate is expired"
-            logging.warning(TLS_failure)
+            tls_failure = CertificateExpired()
+            logging.warning("SSL certificate is expired")
 
         if certificate["cn"] == get_certificate_issuer_cn(certificate):
-            TLS_failure = "Self signed certificate"
-            logging.warning(TLS_failure)
+            tls_failure = SelfSignedCertificate()
+            logging.warning("Self signed certificate")
 
         if not check_certificate_host(self.current_url, certificate):
-            TLS_failure = "Wrong host"
-            logging.warning(TLS_failure)
+            tls_failure = WrongHostCertificate()
+            logging.warning("Certificate wrong host")
 
         canvas_image_data = self.capture_canvas_images()
-        self.create_screenshot()
-
+        post_pageload_url = self.driver.current_url
         requests = self.get_requests()
         cookies = self.driver.get_cookies()
+
+        self.create_screenshot()
 
         # TODO: accept cookies
         consent_failure = False
@@ -268,26 +343,17 @@ class Crawler:
         self.create_screenshot(post_consent=True)
 
         self.driver.close()
-        logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
-        output = {
-            "website_domain": self.current_domain,
-            "crawl_mode": self.crawl_mode,
-            "post_pageload_url": post_pageload_url,
-            "pageload_start_ts": start_time,
-            "pageload_end_ts": end_time,
-            "consent_status": None,
-            "requests": requests,
-            "load_time": end_time - start_time,
-            "cookies": cookies,
-            "canvas_image_data": canvas_image_data,
-            "failure_status": {
-                "timeout": timeout_failure,
-                "TLS": TLS_failure,
-                "consent": consent_failure,
-            },
-        }
-        self.create_json(output)
+        return (
+            start_time,
+            end_time,
+            post_pageload_url,
+            requests,
+            cookies,
+            canvas_image_data,
+            tls_failure,
+            consent_failure,
+        )
 
     def crawl_urls(self, urls):
         """
