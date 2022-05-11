@@ -227,23 +227,11 @@ class Crawler:
         Crawls a single url
         :param url: The url to crawl
         """
+        self.start_driver()
+        logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+
         try:
-            logging.info(
-                f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}'
-            )
-            (
-                start_time,
-                end_time,
-                post_pageload_url,
-                requests,
-                cookies,
-                canvas_image_data,
-                tls_failure,
-                consent_failure,
-            ) = self._crawl_url(url)
-            logging.info(
-                f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}'
-            )
+            post_pageload_url, start_time, end_time, tls_failure = self._crawl_url(url)
         except DomainDoesNotExist:
             return
         except TimeoutError:
@@ -264,24 +252,35 @@ class Crawler:
                     "consent": None,
                 },
             }
-        else:
-            output = {
-                "website_domain": self.current_domain,
-                "crawl_mode": self.crawl_mode,
-                "post_pageload_url": post_pageload_url,
-                "pageload_start_ts": start_time,
-                "pageload_end_ts": end_time,
-                "consent_status": None,
-                "requests": requests,
-                "load_time": end_time - start_time,
-                "cookies": cookies,
-                "canvas_image_data": canvas_image_data,
-                "failure_status": {
-                    "timeout": None,
-                    "TLS": str(tls_failure) if tls_failure else None,
-                    "consent": consent_failure,
-                },
-            }
+            self.create_json(output)
+            return
+
+        (
+            requests,
+            cookies,
+            canvas_image_data,
+            consent_failure,
+        ) = self._interact_with_page()
+
+        logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+
+        output = {
+            "website_domain": self.current_domain,
+            "crawl_mode": self.crawl_mode,
+            "post_pageload_url": post_pageload_url,
+            "pageload_start_ts": start_time,
+            "pageload_end_ts": end_time,
+            "consent_status": None,
+            "requests": requests,
+            "load_time": end_time - start_time,
+            "cookies": cookies,
+            "canvas_image_data": canvas_image_data,
+            "failure_status": {
+                "timeout": None,
+                "TLS": str(tls_failure) if tls_failure else None,
+                "consent": consent_failure,
+            },
+        }
         self.create_json(output)
 
     def _crawl_url(self, url):
@@ -330,10 +329,12 @@ class Crawler:
             tls_failure = WrongHostCertificate()
             logging.warning("Certificate wrong host")
 
-        canvas_image_data = self.capture_canvas_images()
         post_pageload_url = self.driver.current_url
-        requests = self.get_requests()
-        cookies = self.driver.get_cookies()
+
+        return post_pageload_url, start_time, end_time, tls_failure
+
+    def _interact_with_page(self):
+        canvas_image_data = self.capture_canvas_images()
 
         self.create_screenshot()
 
@@ -341,17 +342,13 @@ class Crawler:
         consent_failure = False
 
         self.create_screenshot(post_consent=True)
-
-        self.driver.close()
+        requests = self.get_requests()
+        cookies = self.driver.get_cookies()
 
         return (
-            start_time,
-            end_time,
-            post_pageload_url,
             requests,
             cookies,
             canvas_image_data,
-            tls_failure,
             consent_failure,
         )
 
