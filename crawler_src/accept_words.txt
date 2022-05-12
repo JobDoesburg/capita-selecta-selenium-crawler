@@ -259,3 +259,5 @@ zustimmen und weiter
 accepteren
 ik ga akkoord
 akkoord
+allow essential and optional cookies
+essentiële en optionele cookies accepteren
