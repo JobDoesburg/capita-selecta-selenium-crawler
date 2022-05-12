@@ -169,7 +169,7 @@ class Crawler:
     def output_file_prefix(self):
         return f"{self.current_domain}_{self.crawl_mode}"
 
-    def get_requests(self):
+    def _get_requests(self):
         """
         Get the HTTP requests and responses including URL, time and headers.
         :return: All HTTP requests that were created.
@@ -189,7 +189,7 @@ class Crawler:
             requests.append(request_data)
         return requests
 
-    def create_screenshot(self, post_consent=False):
+    def _create_screenshot(self, post_consent=False):
         """
         Create a screenshot and save it.
         :param post_consent: Pre or post accepting cookies
@@ -201,7 +201,16 @@ class Crawler:
 
         self.driver.save_screenshot(filename)
 
-    def prepare_canvas_capture(self):
+    def _create_json(self, output):
+        """
+        Create a json file containing crawler output
+        :param output: output data
+        """
+        filename = path.join(self.output_dir, f"{self.output_file_prefix}.json")
+        with open(filename, "w") as outfile:
+            json.dump(output, outfile, indent=4)
+
+    def _prepare_canvas_capture(self):
         file_path = path.join(
             path.dirname(path.abspath(__file__)), "./js/HTMLCanvasElement.js"
         )
@@ -212,7 +221,7 @@ class Crawler:
             "Page.addScriptToEvaluateOnNewDocument", {"source": js}
         )
 
-    def capture_canvas_images(self):
+    def _capture_canvas_images(self):
         images = self.driver.find_elements_by_class_name("canvas_img_crawler")
 
         output = []
@@ -246,16 +255,7 @@ class Crawler:
 
         return output
 
-    def create_json(self, output):
-        """
-        Create a json file containing crawler output
-        :param output: output data
-        """
-        filename = path.join(self.output_dir, f"{self.output_file_prefix}.json")
-        with open(filename, "w") as outfile:
-            json.dump(output, outfile, indent=4)
-
-    def click_banner(self):
+    def __click_banner(self):
         accept_words_list = set()
         with open(ACCEPTWORDS, "r", encoding="utf-8") as accept_words_file:
             lines = accept_words_file.read().splitlines()
@@ -304,10 +304,10 @@ class Crawler:
 
         return banner_data_return
 
-    def accept_consent(self):
+    def _accept_consent(self):
         # Click Banner
         logging.info("Consent:Searching Banner")
-        banner_data = self.click_banner()
+        banner_data = self.__click_banner()
 
         if "clicked_element" not in banner_data:
             iframe_contents = self.driver.find_elements_by_css_selector("iframe")
@@ -315,7 +315,7 @@ class Crawler:
                 logging.info("Consent:Switching to frame: {}".format(content.id))
                 try:
                     self.driver.switch_to.frame(content)
-                    banner_data = self.click_banner()
+                    banner_data = self.__click_banner()
                     self.driver.switch_to.default_content()
                     if "clicked_element" in banner_data:
                         break
@@ -334,95 +334,18 @@ class Crawler:
 
         return "clicked_element" in banner_data
 
-    def crawl_url(self, url, rank=None):
+    def _load_page_first_time(self, url):
         """
-        Crawls a single url
-        :param url: The url to crawl
-        """
-        self.start_driver()
-        logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
-        tls_failure = None
-
-        start_time = time.mktime(time.localtime())
-
-        try:
-            self._crawl_url(url)
-        except DomainDoesNotExist:
-            logging.error("Domain does not exist. Skipping this domain.")
-            self.driver.close()
-            return
-        except TimeoutError:
-            logging.error(f"Timeout occurred")
-            output = {
-                "website_domain": self.current_domain,
-                "rank": rank,
-                "crawl_mode": self.crawl_mode,
-                "post_pageload_url": None,
-                "pageload_start_ts": None,
-                "pageload_end_ts": None,
-                "consent_status": None,
-                "requests": [],
-                "load_time": None,
-                "cookies": None,
-                "canvas_image_data": None,
-                "failure_status": {
-                    "timeout": True,
-                    "TLS": None,
-                    "consent": False,
-                },
-            }
-            self.create_json(output)
-            self.driver.close()
-            return
-        except TLSError as e:
-            tls_failure = str(e)
-            logging.warning(f"TLS error occurred: {tls_failure}")
-
-        end_time = time.mktime(time.localtime())
-
-        (
-            post_pageload_url,
-            requests,
-            cookies,
-            canvas_image_data,
-            consent_failure,
-        ) = self._interact_with_page()
-
-        logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
-
-        output = {
-            "website_domain": self.current_domain,
-            "rank": rank,
-            "crawl_mode": self.crawl_mode,
-            "post_pageload_url": post_pageload_url,
-            "pageload_start_ts": start_time,
-            "pageload_end_ts": end_time,
-            "consent_status": None,
-            "requests": requests,
-            "load_time": end_time - start_time,
-            "cookies": cookies,
-            "canvas_image_data": canvas_image_data,
-            "failure_status": {
-                "timeout": False,
-                "TLS": str(tls_failure) if tls_failure else None,
-                "consent": consent_failure,
-            },
-        }
-        self.create_json(output)
-        self.driver.close()
-
-    def _crawl_url(self, url):
-        """
-        Crawls a single url, but without logging and analysis
-        :param url: The url to crawl
+        Loads a single url
+        :param url: The url
         """
         self.current_url = url
         self.start_driver()
-        self.prepare_canvas_capture()
+        self._prepare_canvas_capture()
 
         try:
             self.driver.get(url)
-        except WebDriverException as e:
+        except WebDriverException:
             raise TimeoutError()
 
         if len(self.driver.requests) == 0:
@@ -448,20 +371,20 @@ class Crawler:
         if not check_certificate_host(self.current_url, certificate):
             raise WrongHostCertificate()
 
-    def _interact_with_page(self):
+    def _handle_page(self):
         time.sleep(self.js_load_wait)
-        self.create_screenshot()
+        self._create_screenshot()
         try:
-            accepted_tracking = self.accept_consent()
+            accepted_tracking = self._accept_consent()
         except Exception as e:
             logging.warning(f"Accepting tracking caused crash. Exception: {e}")
             accepted_tracking = False
         time.sleep(self.js_load_wait)
 
-        self.create_screenshot(post_consent=True)
+        self._create_screenshot(post_consent=True)
         post_pageload_url = self.driver.current_url
-        canvas_image_data = self.capture_canvas_images()
-        requests = self.get_requests()
+        canvas_image_data = self._capture_canvas_images()
+        requests = self._get_requests()
         cookies = self.driver.get_cookies()
 
         return (
@@ -471,6 +394,84 @@ class Crawler:
             canvas_image_data,
             accepted_tracking,
         )
+
+    def crawl_url(self, url, rank=None):
+        """
+        Crawls a single url
+        :param url: The url to crawl
+        :param rank: the rank of the url to include in the output
+        """
+        self.start_driver()
+        logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+        tls_failure = None
+
+        start_time = time.mktime(time.localtime())
+
+        try:
+            self._load_page_first_time(url)
+        except DomainDoesNotExist:
+            logging.error("Domain does not exist. Skipping this domain.")
+            self.driver.close()
+            return
+        except TimeoutError:
+            logging.error(f"Timeout occurred")
+            output = {
+                "website_domain": self.current_domain,
+                "rank": rank,
+                "crawl_mode": self.crawl_mode,
+                "post_pageload_url": None,
+                "pageload_start_ts": None,
+                "pageload_end_ts": None,
+                "consent_status": None,
+                "requests": [],
+                "load_time": None,
+                "cookies": None,
+                "canvas_image_data": None,
+                "failure_status": {
+                    "timeout": True,
+                    "TLS": None,
+                    "consent": False,
+                },
+            }
+            self._create_json(output)
+            self.driver.close()
+            return
+        except TLSError as e:
+            tls_failure = str(e)
+            logging.warning(f"TLS error occurred: {tls_failure}")
+
+        end_time = time.mktime(time.localtime())
+
+        (
+            post_pageload_url,
+            requests,
+            cookies,
+            canvas_image_data,
+            consent_failure,
+        ) = self._handle_page()
+
+        logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+
+        output = {
+            "website_domain": self.current_domain,
+            "rank": rank,
+            "crawl_mode": self.crawl_mode,
+            "post_pageload_url": post_pageload_url,
+            "pageload_start_ts": start_time,
+            "pageload_end_ts": end_time,
+            "consent_status": None,
+            "requests": requests,
+            "load_time": end_time - start_time,
+            "cookies": cookies,
+            "canvas_image_data": canvas_image_data,
+            "failure_status": {
+                "timeout": False,
+                "TLS": str(tls_failure) if tls_failure else None,
+                "consent": consent_failure,
+            },
+        }
+        self._create_json(output)
+        self.driver.close()
 
     def crawl_urls(self, urls):
         """
