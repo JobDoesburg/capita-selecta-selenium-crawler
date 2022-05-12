@@ -157,6 +157,9 @@ class Crawler:
         )
         self.driver.set_page_load_timeout(self.timeout)
 
+        if not self.mobile:
+            self.driver.set_window_size(1366,768)
+
     @property
     def crawl_mode(self):
         return "mobile" if self.mobile else "desktop"
