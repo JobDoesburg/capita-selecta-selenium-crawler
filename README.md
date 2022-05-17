@@ -8,6 +8,7 @@
 3. Install deps: `pip install -r requirements.txt`
 4. Install chromedriver:
    1. For macOS: `brew install --cask chromedriver`
+   2. For linux: https://skolo.online/documents/webscrapping/#step-2-install-chromedriver
 
 
 ### Run a crawl
