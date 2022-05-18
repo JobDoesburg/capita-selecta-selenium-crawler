@@ -82,25 +82,35 @@ def check_certificate_host(url, certificate):
     :param certificate: the certificate that is presented
     :return: True if the certificate is valid for this url, or false if it is the wrong host
     """
-    full_domain = urlparse(url).netloc.split(".")
-    cert_domain = certificate["cn"].decode("utf-8").split(".")
+    cert_domains = [
+        record.decode("utf-8").split(".")
+        for record in [certificate["cn"]] + certificate["altnames"]
+    ]
 
-    while len(full_domain) > 0:
-        full_domain_part = full_domain.pop()
-        try:
-            cert_domain_part = cert_domain.pop()
-        except IndexError:
-            if full_domain_part == "www" and len(full_domain) == 0:
-                return True
-            return False
-        if cert_domain_part is None or (
-            cert_domain_part != "*" and cert_domain_part != full_domain_part
-        ):
-            return False
+    def check_single_domain(url, cert_domain):
+        full_domain = urlparse(url).netloc.split(".")
+        while len(full_domain) > 0:
+            full_domain_part = full_domain.pop()
+            try:
+                cert_domain_part = cert_domain.pop()
+            except IndexError:
+                if full_domain_part == "www" and len(full_domain) == 0:
+                    return True
+                return False
+            if cert_domain_part is None or (
+                cert_domain_part != "*" and cert_domain_part != full_domain_part
+            ):
+                return False
 
-    if len(cert_domain) == 0 or cert_domain[0] == "*":
-        return True
+        if len(cert_domain) == 0 or cert_domain[0] == "*":
+            return True
 
+        return False
+
+    for domain in cert_domains:
+        if check_single_domain(url, domain):
+            return True
+        continue
     return False
 
 
@@ -121,8 +131,8 @@ class Crawler:
         headless=True,
         mobile=False,
         output_dir="crawl_data",
-        pageload_timeout=10,
-        js_load_wait=10,
+        pageload_timeout=1,
+        js_load_wait=1,
     ):
         """
         Initializes the crawler
