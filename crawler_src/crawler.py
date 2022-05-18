@@ -184,10 +184,10 @@ class Crawler:
                 "request_url": request.url,
                 "time": request.date.timestamp(),
                 "request_headers": dict(shorten_http_headers(request.headers)),
-                # TODO: Fix (the object does not appear to have repsonse headers)
-                # "response_headers": dict(
-                #     shorten_http_headers(request.response.headers)
-                # ),
+                "response_status_code": request.response.status_code,
+                "response_headers": dict(
+                    shorten_http_headers(request.response.headers)
+                ),
             }
             requests.append(request_data)
         return requests
