@@ -382,10 +382,11 @@ class Crawler:
         time.sleep(self.js_load_wait)
         self._create_screenshot()
         try:
-            accepted_tracking = self._accept_consent()
+            consent_clicked = self._accept_consent()
+            consent_failure = False
         except Exception as e:
             logging.warning(f"Accepting tracking caused crash. Exception: {e}")
-            accepted_tracking = False
+            consent_failure = True
         time.sleep(self.js_load_wait)
 
         self._create_screenshot(post_consent=True)
@@ -399,7 +400,8 @@ class Crawler:
             requests,
             cookies,
             canvas_image_data,
-            accepted_tracking,
+            consent_clicked,
+            consent_failure,
         )
 
     def crawl_url(self, url, rank=None):
@@ -454,6 +456,7 @@ class Crawler:
             requests,
             cookies,
             canvas_image_data,
+            consent_clicked,
             consent_failure,
         ) = self._handle_page()
 
@@ -471,6 +474,7 @@ class Crawler:
             "load_time": end_time - start_time,
             "cookies": cookies,
             "canvas_image_data": canvas_image_data,
+            "consent_clicked": consent_clicked,
             "failure_status": {
                 "timeout": False,
                 "TLS": str(tls_failure) if tls_failure else None,
