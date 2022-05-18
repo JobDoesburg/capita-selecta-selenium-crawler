@@ -158,7 +158,11 @@ class Crawler:
         self.driver.set_page_load_timeout(self.timeout)
 
         if not self.mobile:
-            self.driver.set_window_size(1366,768)
+            self.driver.set_window_size(1366, 768)
+
+    def stop_driver(self):
+        self.driver.close()
+        self.driver.quit()
 
     @property
     def crawl_mode(self):
@@ -414,7 +418,7 @@ class Crawler:
             self._load_page_first_time(url)
         except DomainDoesNotExist:
             logging.error("Domain does not exist. Skipping this domain.")
-            self.driver.close()
+            self.stop_driver()
             return
         except TimeoutError:
             logging.error(f"Timeout occurred")
@@ -437,7 +441,7 @@ class Crawler:
                 },
             }
             self._create_json(output)
-            self.driver.close()
+            self.stop_driver()
             return
         except TLSError as e:
             tls_failure = str(e)
@@ -474,7 +478,7 @@ class Crawler:
             },
         }
         self._create_json(output)
-        self.driver.close()
+        self.stop_driver()
 
     def crawl_urls(self, urls):
         """
