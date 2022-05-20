@@ -131,8 +131,8 @@ class Crawler:
         headless=True,
         mobile=False,
         output_dir="crawl_data",
-        pageload_timeout=1,
-        js_load_wait=1,
+        pageload_timeout=10,
+        js_load_wait=10,
     ):
         """
         Initializes the crawler
