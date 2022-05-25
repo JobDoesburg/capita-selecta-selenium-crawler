@@ -162,8 +162,11 @@ class Crawler:
             "acceptInsecureCerts": True,
             "pageLoadStrategy": "eager",
         }
+        seleniumwire_options = {"request_storage": "memory"}
         self.driver = webdriver.Chrome(
-            options=chrome_options, desired_capabilities=desired_capabilities
+            options=chrome_options,
+            seleniumwire_options=seleniumwire_options,
+            desired_capabilities=desired_capabilities,
         )
         self.driver.set_page_load_timeout(self.timeout)
 
