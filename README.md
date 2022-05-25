@@ -16,3 +16,8 @@
 - `main.py -u https://google.com/` for a single domain.
 
 Use `main.py -h` to see all options.
+
+### Run the analysis
+- run `jupyter notebook` from the root of the project
+    * Note: if you do not run this from the project root, the canvas images will load incorrectly
+- open and run `analysis/analysis.ipynb`
