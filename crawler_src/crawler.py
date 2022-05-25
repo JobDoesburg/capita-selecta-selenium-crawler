@@ -169,7 +169,14 @@ class Crawler:
             "acceptInsecureCerts": True,
             "pageLoadStrategy": "eager",
         }
-        seleniumwire_options = {"request_storage": "memory"}
+
+        seleniumwire_options = {
+            "request_storage": "memory",
+            "request_storage_max_size": 1000,
+        }
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+
         self.driver = webdriver.Chrome(
             options=chrome_options,
             seleniumwire_options=seleniumwire_options,
