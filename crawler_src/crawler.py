@@ -174,8 +174,6 @@ class Crawler:
             "request_storage": "memory",
             "request_storage_max_size": 1000,
         }
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
 
         self.driver = webdriver.Chrome(
             options=chrome_options,
@@ -188,7 +186,7 @@ class Crawler:
             self.driver.set_window_size(1366, 768)
 
     def stop_driver(self):
-        self.driver.close()
+        # self.driver.close()
         self.driver.quit()
 
     @property
@@ -524,4 +522,5 @@ class Crawler:
                     self.crawl_url(url, rank=i)
                 except Exception as e:
                     logging.error(f"Something went wrong during crawling of {url}: {e}")
+                    self.stop_driver()
                     continue
