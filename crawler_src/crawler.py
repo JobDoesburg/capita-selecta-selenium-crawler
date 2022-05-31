@@ -1,4 +1,3 @@
-import shutil
 from os import path
 
 import tqdm
@@ -165,21 +164,13 @@ class Crawler:
             chrome_options.add_argument(
                 '--user-agent="Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.111 Safari/537.36"'
             )
-        # chrome_options.add_argument("--no-sandbox")
 
         desired_capabilities = {
             "acceptInsecureCerts": True,
             "pageLoadStrategy": "eager",
         }
-
-        # seleniumwire_options = {
-        #     "request_storage": "memory",
-        #     "request_storage_max_size": 1000,
-        # }
-
         self.driver = webdriver.Chrome(
             options=chrome_options,
-            # seleniumwire_options=seleniumwire_options,
             desired_capabilities=desired_capabilities,
         )
         self.driver.set_page_load_timeout(self.timeout)
@@ -189,8 +180,6 @@ class Crawler:
 
     def stop_driver(self):
         self.driver.quit()
-        time.sleep(2)
-        shutil.rmtree('/tmp/.seleniumwire/')
 
     @property
     def crawl_mode(self):
@@ -525,5 +514,4 @@ class Crawler:
                     self.crawl_url(url, rank=i)
                 except Exception as e:
                     logging.error(f"Something went wrong during crawling of {url}: {e}")
-                    self.stop_driver()
                     continue
