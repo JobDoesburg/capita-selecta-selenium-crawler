@@ -58,7 +58,8 @@ def main():
         with open(args.i, "r", newline="") as urls_csv:
             reader = csv.reader(urls_csv)
             urls_with_ranks = list(reader)[1:]  # Skip header
-            crawler.crawl_urls(urls_with_ranks)
+
+        crawler.crawl_urls(urls_with_ranks)
 
 
 if __name__ == "__main__":

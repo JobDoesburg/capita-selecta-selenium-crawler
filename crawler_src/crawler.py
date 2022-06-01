@@ -1,3 +1,4 @@
+import signal
 from os import path
 
 import tqdm
@@ -150,6 +151,13 @@ class Crawler:
         self.current_url = None
         self.driver = None
 
+        self.accept_words_list = set()
+        with open(ACCEPTWORDS, "r", encoding="utf-8") as accept_words_file:
+            lines = accept_words_file.read().splitlines()
+        for w in lines:
+            if not w.startswith("#") and not w == "":
+                self.accept_words_list.add(w)
+
     def start_driver(self):
         chrome_options = Options()
         if self.headless:
@@ -169,8 +177,14 @@ class Crawler:
             "acceptInsecureCerts": True,
             "pageLoadStrategy": "eager",
         }
+        seleniumwire_options = {
+            "request_storage": "memory",
+            "request_storage_max_size": 1000,
+        }
+
         self.driver = webdriver.Chrome(
             options=chrome_options,
+            seleniumwire_options=seleniumwire_options,
             desired_capabilities=desired_capabilities,
         )
         self.driver.set_page_load_timeout(self.timeout)
@@ -179,6 +193,7 @@ class Crawler:
             self.driver.set_window_size(1366, 768)
 
     def stop_driver(self):
+        self.driver.service.process.send_signal(signal.SIGTERM)
         self.driver.quit()
 
     @property
@@ -280,13 +295,6 @@ class Crawler:
         return output
 
     def __click_banner(self):
-        accept_words_list = set()
-        with open(ACCEPTWORDS, "r", encoding="utf-8") as accept_words_file:
-            lines = accept_words_file.read().splitlines()
-        for w in lines:
-            if not w.startswith("#") and not w == "":
-                accept_words_list.add(w)
-
         banner_data_return = {"matched_containers": [], "candidate_elements": []}
         contents = self.driver.find_elements_by_css_selector(GLOBAL_SELECTOR)
 
@@ -294,7 +302,7 @@ class Crawler:
 
         for c in contents:
             try:
-                if c.text.lower().strip(" ✓›!\n") in accept_words_list:
+                if c.text.lower().strip(" ✓›!\n") in self.accept_words_list:
                     candidate = c
                     banner_data_return["candidate_elements"].append(
                         {
