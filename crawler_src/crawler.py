@@ -7,123 +7,14 @@ import logging
 import time
 import json
 import base64
-from urllib.parse import urlparse
 
 from seleniumwire import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import WebDriverException
 
-GLOBAL_SELECTOR = "a, button, div, span, form, p"
-ACCEPTWORDS = path.join(path.dirname(path.abspath(__file__)), "accept_words.txt")
-TRY_SCROLL = True
-
-
-def get_signature(element):
-    def props_to_dict(e):
-        props = {"tag": e.tag_name}
-        for attr in e.get_property("attributes"):
-            props[attr["name"]] = attr["value"]
-        return props
-
-    signature = []
-    current = element
-    while True:
-        signature.insert(0, props_to_dict(current))
-
-        if current.tag_name == "html":
-            break
-        current = current.find_element(by="XPATH", value="..")
-        if current is None:
-            break
-
-    return signature
-
-
-class DomainDoesNotExist(Exception):
-    pass
-
-
-class TLSError(Exception):
-    pass
-
-
-class SelfSignedCertificate(TLSError):
-    def __str__(self):
-        return "Self-signed certificate"
-
-
-class WrongHostCertificate(TLSError):
-    def __str__(self):
-        return "Wrong host certificate"
-
-
-class CertificateExpired(TLSError):
-    def __str__(self):
-        return "Certificate expired"
-
-
-def shorten_http_headers(headers):
-    """
-    Shorten header values to 512 characters
-    :return: HTTPheaders object with shortened header values
-    """
-    for key in headers:
-        value = headers[key]
-        if len(value) > 512:
-            del headers[key]
-            headers[key] = value[0:512]
-    return headers
-
-
-def check_certificate_host(url, certificate):
-    """
-    Check if the certificate is valid for this url. See RFC 2818.
-    :param url: the url to verify against
-    :param certificate: the certificate that is presented
-    :return: True if the certificate is valid for this url, or false if it is the wrong host
-    """
-    cert_domains = [
-        record.decode("utf-8").split(".")
-        for record in [certificate["cn"]] + certificate["altnames"]
-    ]
-
-    def check_single_domain(url, cert_domain):
-        full_domain = urlparse(url).netloc.split(".")
-        while len(full_domain) > 0:
-            full_domain_part = full_domain.pop()
-            try:
-                cert_domain_part = cert_domain.pop()
-            except IndexError:
-                if full_domain_part == "www" and len(full_domain) == 0:
-                    return True
-                return False
-            if cert_domain_part is None or (
-                cert_domain_part != "*" and cert_domain_part != full_domain_part
-            ):
-                return False
-
-        if len(cert_domain) == 0 or cert_domain[0] == "*":
-            return True
-
-        return False
-
-    for domain in cert_domains:
-        if check_single_domain(url, domain):
-            return True
-        continue
-    return False
-
-
-def get_certificate_issuer_cn(cert):
-    """
-    Get the issuer CN of a certificate
-    :param cert: the certificate
-    :return: the issuer CN
-    """
-    for key, val in cert["issuer"]:
-        if key == b"CN":
-            return val
+from .exceptions import *
+from .utils import check_certificate_host, shorten_http_headers
 
 
 class Crawler:
@@ -136,7 +27,7 @@ class Crawler:
         js_load_wait=10,
     ):
         """
-        Initializes the crawler
+        Initializes the crawler.
         :param headless: run the browser headless or not
         :param mobile: run the browser as mobile device
         :param output_dir: folder to put the output files
@@ -148,20 +39,50 @@ class Crawler:
         self.mobile = mobile
         self.output_dir = output_dir
 
+        self.__init_consent_accept_words_list()
+        self.__init_fingerprint_canvas()
+
         self.current_url = None
         self.driver = None
 
-        self.accept_words_list = set()
-        with open(ACCEPTWORDS, "r", encoding="utf-8") as accept_words_file:
+    def __init_consent_accept_words_list(self):
+        """Initialize a list with words to consider as consent window accept words."""
+        self.consent_accept_words = set()
+        file_path = path.join(path.dirname(path.abspath(__file__)), "accept_words.txt")
+        with open(file_path, "r", encoding="utf-8") as accept_words_file:
             lines = accept_words_file.read().splitlines()
         for w in lines:
             if not w.startswith("#") and not w == "":
-                self.accept_words_list.add(w)
+                self.consent_accept_words.add(w)
+
+    def __init_fingerprint_canvas(self):
+        """Initialize a javascript file to detect fingerprinting."""
+        file_path = path.join(
+            path.dirname(path.abspath(__file__)), "./js/HTMLCanvasElement.js"
+        )
+        with open(file_path, "r") as file:
+            self.fingerprint_html_canvas_element_js = file.read().replace("\n", "")
+
+    @property
+    def crawl_mode(self):
+        return "mobile" if self.mobile else "desktop"
+
+    @property
+    def current_domain(self):
+        return get_fld(self.current_url)
+
+    @property
+    def output_file_prefix(self):
+        return f"{self.current_domain}_{self.crawl_mode}"
 
     def start_driver(self):
+        """Start a Chrome browser instance."""
         chrome_options = Options()
+
         if self.headless:
             chrome_options.add_argument("--headless")
+
+        # Don't reveal you're a crawler
         if self.mobile:
             mobile_emulation = {"deviceName": "Nexus 6P"}
             chrome_options.add_argument(
@@ -179,8 +100,7 @@ class Crawler:
         }
         seleniumwire_options = {
             "request_storage": "memory",
-            "request_storage_max_size": 1000,
-        }
+        }  # Use in-memory storage because it is more optimal
 
         self.driver = webdriver.Chrome(
             options=chrome_options,
@@ -193,20 +113,11 @@ class Crawler:
             self.driver.set_window_size(1366, 768)
 
     def stop_driver(self):
-        self.driver.service.process.send_signal(signal.SIGTERM)
+        """Close the driver"""
+        self.driver.service.process.send_signal(
+            signal.SIGTERM
+        )  # make sure to always stop, even if quitting will fail.
         self.driver.quit()
-
-    @property
-    def crawl_mode(self):
-        return "mobile" if self.mobile else "desktop"
-
-    @property
-    def current_domain(self):
-        return get_fld(self.current_url)
-
-    @property
-    def output_file_prefix(self):
-        return f"{self.current_domain}_{self.crawl_mode}"
 
     def _get_requests(self):
         """
@@ -242,25 +153,22 @@ class Crawler:
 
     def _create_json(self, output):
         """
-        Create a json file containing crawler output
+        Create a json file containing crawler output.
         :param output: output data
         """
         filename = path.join(self.output_dir, f"{self.output_file_prefix}.json")
         with open(filename, "w") as outfile:
             json.dump(output, outfile, indent=4)
 
-    def _prepare_canvas_capture(self):
-        file_path = path.join(
-            path.dirname(path.abspath(__file__)), "./js/HTMLCanvasElement.js"
-        )
-        with open(file_path, "r") as file:
-            js = file.read().replace("\n", "")
-
+    def _prepare_fingerprint_canvas_capture(self):
+        """Execute CDP command for detecting canvas fingerprinting."""
         self.driver.execute_cdp_cmd(
-            "Page.addScriptToEvaluateOnNewDocument", {"source": js}
+            "Page.addScriptToEvaluateOnNewDocument",
+            {"source": self.fingerprint_html_canvas_element_js},
         )
 
-    def _capture_canvas_images(self):
+    def _capture_fingerprint_canvas_images(self):
+        """Detect canvas fingerprinting."""
         images = self.driver.find_elements_by_class_name("canvas_img_crawler")
 
         output = []
@@ -294,86 +202,69 @@ class Crawler:
 
         return output
 
-    def __click_banner(self):
-        banner_data_return = {"matched_containers": [], "candidate_elements": []}
-        contents = self.driver.find_elements_by_css_selector(GLOBAL_SELECTOR)
+    def __click_consent_banner(self):
+        """
+        Click on a consent accept banner element.
+        :return: whether an element was clicked
+        """
+        contents = self.driver.find_elements_by_css_selector(
+            "a, button, div, span, form, p"
+        )
 
         candidate = None
 
         for c in contents:
-            try:
-                if c.text.lower().strip(" ✓›!\n") in self.accept_words_list:
-                    candidate = c
-                    banner_data_return["candidate_elements"].append(
-                        {
-                            "id": c.id,
-                            "tag_name": c.tag_name,
-                            "text": c.text,
-                            "size": c.size,
-                            "signature": get_signature(c),
-                        }
-                    )
-                    break
-            except:
-                logging.info("Consent:Exception in processing element: {}".format(c.id))
+            if c.text.lower().strip(" ✓›!\n") in self.consent_accept_words:
+                candidate = c
+                break
 
-        # Click the candidate
         if candidate is not None:
-            try:  # in some pages element is not clickable
-                logging.info(
-                    "Consent:Clicking text: {}".format(
-                        candidate.text.lower().strip(" ✓›!\n")
-                    )
-                )
-                candidate.click()
-                banner_data_return["clicked_element"] = candidate.id
-                logging.info("Consent:Clicked: {}".format(candidate.id))
+            candidate.click()
+            return True
 
-            except:
-                logging.info("Consent:Exception in candidate click")
-        else:
-            logging.info("Consent:Warning, no matching candidate")
-
-        return banner_data_return
+        logging.info("No consent accept element was found")
+        return None
 
     def _accept_consent(self):
-        # Click Banner
-        logging.info("Consent:Searching Banner")
-        banner_data = self.__click_banner()
+        """
+        Try to accept a privacy consent popup.
+        :return: whether an element was clicked
+        """
+        element_clicked = self.__click_consent_banner()
 
-        if "clicked_element" not in banner_data:
+        if element_clicked:
+            # Also try windows in iframes
             iframe_contents = self.driver.find_elements_by_css_selector("iframe")
             for content in iframe_contents:
-                logging.info("Consent:Switching to frame: {}".format(content.id))
                 try:
                     self.driver.switch_to.frame(content)
-                    banner_data = self.__click_banner()
+                    element_clicked = self.__click_consent_banner()
                     self.driver.switch_to.default_content()
-                    if "clicked_element" in banner_data:
+                    if element_clicked:
                         break
                 except NoSuchFrameException:
                     self.driver.switch_to.default_content()
-                    logging.info("Consent:Error in switching to frame")
+                    logging.info(
+                        "Error occurred in switching to iframe for accepting consent"
+                    )
 
-        if not "clicked_element" in banner_data and TRY_SCROLL:
-            logging.info("Consent:Trying with scroll")
+        if not element_clicked:
+            logging.info("Trying to accept consent with scroll")
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+
         time.sleep(1)
-        logging.info("Consent:URL after click: {}".format(self.driver.current_url))
+        logging.info(f"URL after accepting consent: {self.driver.current_url}")
 
-        # Clean last page
-        # self.driver.get("about:blank")
-
-        return "clicked_element" in banner_data
+        return element_clicked
 
     def _load_page_first_time(self, url):
         """
-        Loads a single url
+        Loads a single url.
         :param url: The url
         """
         self.current_url = url
         self.start_driver()
-        self._prepare_canvas_capture()
+        self._prepare_fingerprint_canvas_capture()
 
         try:
             self.driver.get(url)
@@ -397,6 +288,11 @@ class Crawler:
         if certificate["expired"] is True:
             raise CertificateExpired()
 
+        def get_certificate_issuer_cn(cert):
+            for key, val in cert["issuer"]:
+                if key == b"CN":
+                    return val
+
         if certificate["cn"] == get_certificate_issuer_cn(certificate):
             raise SelfSignedCertificate()
 
@@ -404,6 +300,9 @@ class Crawler:
             raise WrongHostCertificate()
 
     def _handle_page(self):
+        """
+        Interact with a page that is loaded by the crawler: try to accept consent and detect fingerprinting.
+        """
         time.sleep(self.js_load_wait)
         self._create_screenshot()
         try:
@@ -411,12 +310,14 @@ class Crawler:
             consent_failure = False
         except Exception as e:
             logging.warning(f"Accepting tracking caused crash. Exception: {e}")
+            consent_clicked = False
             consent_failure = True
+
         time.sleep(self.js_load_wait)
 
         self._create_screenshot(post_consent=True)
         post_pageload_url = self.driver.current_url
-        canvas_image_data = self._capture_canvas_images()
+        canvas_image_data = self._capture_fingerprint_canvas_images()
         requests = self._get_requests()
         cookies = self.driver.get_cookies()
 
@@ -431,7 +332,7 @@ class Crawler:
 
     def crawl_url(self, url, rank=None):
         """
-        Crawls a single url
+        Crawls a single url.
         :param url: The url to crawl
         :param rank: the rank of the url to include in the output
         """
