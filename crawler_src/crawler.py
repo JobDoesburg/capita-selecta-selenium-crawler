@@ -118,6 +118,7 @@ class Crawler:
             signal.SIGTERM
         )  # make sure to always stop, even if quitting will fail.
         self.driver.quit()
+        del self.driver
 
     def _get_requests(self):
         """
@@ -131,7 +132,7 @@ class Crawler:
                 "request_url": request.url,
                 "time": request.date.timestamp(),
                 "request_headers": dict(shorten_http_headers(request.headers)),
-                "response_status_code": request.response.status_code,
+                "response_status_code": request.response.status_code or None,
                 "response_headers": dict(
                     shorten_http_headers(request.response.headers)
                 ),
