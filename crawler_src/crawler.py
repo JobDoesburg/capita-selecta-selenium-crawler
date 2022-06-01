@@ -13,8 +13,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import WebDriverException
 
-from .exceptions import *
-from .utils import check_certificate_host, shorten_http_headers
+from exceptions import *
+from utils import *
 
 
 class Crawler:
