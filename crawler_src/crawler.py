@@ -23,8 +23,8 @@ class Crawler:
         headless=True,
         mobile=False,
         output_dir="crawl_data",
-        pageload_timeout=10,
-        js_load_wait=10,
+        pageload_timeout=30,
+        js_load_wait=5,
     ):
         """
         Initializes the crawler.
@@ -252,8 +252,12 @@ class Crawler:
                     )
 
         if not element_clicked:
-            logging.info("Trying to accept consent with scroll")
+            # Try scrolling and see if a consent window appears
+            logging.info("Trying to accept consent after scroll")
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+            time.sleep(1)
+            self.driver.execute_script("window.scrollTo(0, 0)")
+            return self._accept_consent()
 
         time.sleep(1)
         logging.info(f"URL after accepting consent: {self.driver.current_url}")
