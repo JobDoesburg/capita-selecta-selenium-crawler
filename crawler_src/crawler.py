@@ -132,10 +132,12 @@ class Crawler:
                 "request_url": request.url,
                 "time": request.date.timestamp(),
                 "request_headers": dict(shorten_http_headers(request.headers)),
-                "response_status_code": request.response.status_code or None,
-                "response_headers": dict(
-                    shorten_http_headers(request.response.headers)
-                ),
+                "response_status_code": request.response.status_code
+                if request.response
+                else None,
+                "response_headers": dict(shorten_http_headers(request.response.headers))
+                if request.response
+                else None,
             }
             requests.append(request_data)
         return requests
@@ -389,6 +391,13 @@ class Crawler:
 
         logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
 
+        if consent_failure:
+            consent_status = "errored"
+        elif consent_clicked:
+            consent_status = "clicked"
+        else:
+            consent_status = "not_found"
+
         output = {
             "website_domain": self.current_domain,
             "rank": rank,
@@ -396,7 +405,7 @@ class Crawler:
             "post_pageload_url": post_pageload_url,
             "pageload_start_ts": start_time,
             "pageload_end_ts": end_time,
-            "consent_status": None,
+            "consent_status": consent_status,
             "requests": requests,
             "load_time": end_time - start_time,
             "cookies": cookies,
