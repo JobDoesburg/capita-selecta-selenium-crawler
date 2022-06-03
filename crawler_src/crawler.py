@@ -43,7 +43,10 @@ class Crawler:
         self.__init_fingerprint_canvas()
 
         self.current_url = None
-        self.driver = None
+
+        self.errored_urls = []
+
+        self.start_driver()
 
     def __init_consent_accept_words_list(self):
         """Initialize a list with words to consider as consent window accept words."""
@@ -114,11 +117,9 @@ class Crawler:
 
     def stop_driver(self):
         """Close the driver"""
-        self.driver.service.process.send_signal(
-            signal.SIGTERM
-        )  # make sure to always stop, even if quitting will fail.
-        self.driver.quit()
-        del self.driver
+        self.driver.get("about:blank")
+        self.driver.delete_all_cookies()
+        del self.driver.requests
 
     def _get_requests(self):
         """
@@ -211,7 +212,7 @@ class Crawler:
         :return: whether an element was clicked
         """
         contents = self.driver.find_elements_by_css_selector(
-            "a, button, div, span, form, p"
+            "a, button, div, span, form, p, input[type=button]"
         )
 
         candidate = None
@@ -252,14 +253,10 @@ class Crawler:
                     )
 
         if not element_clicked:
-            # Try scrolling and see if a consent window appears
-            logging.info("Trying to accept consent after scroll")
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
-            time.sleep(1)
-            self.driver.execute_script("window.scrollTo(0, 0)")
-            return self._accept_consent()
+            logging.info(f"No consent banner found.")
+            return element_clicked
 
-        time.sleep(1)
+        time.sleep(2)
         logging.info(f"URL after accepting consent: {self.driver.current_url}")
 
         return element_clicked
@@ -270,7 +267,6 @@ class Crawler:
         :param url: The url
         """
         self.current_url = url
-        self.start_driver()
         self._prepare_fingerprint_canvas_capture()
 
         try:
@@ -279,7 +275,6 @@ class Crawler:
             raise TimeoutError()
 
         if len(self.driver.requests) == 0:
-            logging.error("Timeout")
             raise TimeoutError()
 
         first_request = self.driver.requests[0]
@@ -343,8 +338,7 @@ class Crawler:
         :param url: The url to crawl
         :param rank: the rank of the url to include in the output
         """
-        self.start_driver()
-        logging.info(f'Crawl start: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+        logging.info(f'Start crawling {self.current_url}: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
         tls_failure = None
 
         start_time = time.mktime(time.localtime())
@@ -352,11 +346,13 @@ class Crawler:
         try:
             self._load_page_first_time(url)
         except DomainDoesNotExist:
-            logging.error("Domain does not exist. Skipping this domain.")
+            logging.error(f"Domain {self.current_url} does not exist. Skipping this domain.")
+            self.errored_urls.append(self.current_url)
             self.stop_driver()
             return
         except TimeoutError:
-            logging.error(f"Timeout occurred")
+            logging.error(f"Timeout occurred during crawling of {self.current_url}")
+            self.errored_urls.append(self.current_url)
             output = {
                 "website_domain": self.current_domain,
                 "rank": rank,
@@ -437,4 +433,7 @@ class Crawler:
                     self.crawl_url(url, rank=i)
                 except Exception as e:
                     logging.error(f"Something went wrong during crawling of {url}: {e}")
+                    self.errored_urls.append(self.current_url)
                     continue
+
+        print(f"Errored urls: {self.errored_urls}")
