@@ -289,7 +289,7 @@ class Crawler:
         # will be caught by selenium-wire.
 
         if first_request.response is None:
-            logging.warning("Domain doesn't exist")
+            logging.warning(f"Domain {self.current_url} doesn't exist")
             raise DomainDoesNotExist()
 
         certificate = first_request.cert
@@ -317,7 +317,9 @@ class Crawler:
             consent_clicked = self._accept_consent()
             consent_failure = False
         except Exception as e:
-            logging.warning(f"Accepting tracking caused crash. Exception: {e}")
+            logging.warning(
+                f"Accepting tracking at {self.current_url} caused crash. Exception: {e}"
+            )
             consent_clicked = False
             consent_failure = True
 
@@ -387,7 +389,9 @@ class Crawler:
             return
         except TLSError as e:
             tls_failure = str(e)
-            logging.warning(f"TLS error occurred: {tls_failure}")
+            logging.warning(
+                f"TLS error occurred during crawling of {self.current_url}: {tls_failure}"
+            )
 
         end_time = time.mktime(time.localtime())
 
@@ -449,7 +453,6 @@ class Crawler:
         :param urls: The urls to crawl.
         """
         self._crawl_urls(urls)
-        print(f"Errored urls: {self.errored_urls}")
 
     def __delete__(self, instance):
         self.driver.quit()
