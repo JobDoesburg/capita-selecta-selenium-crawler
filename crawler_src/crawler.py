@@ -341,7 +341,9 @@ class Crawler:
         :param url: The url to crawl
         :param rank: the rank of the url to include in the output
         """
-        logging.info(f'Start crawling {self.current_url}: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+        logging.info(
+            f'Start crawling {self.current_url}: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}'
+        )
         tls_failure = None
 
         start_time = time.mktime(time.localtime())
@@ -349,7 +351,9 @@ class Crawler:
         try:
             self._load_page_first_time(url)
         except DomainDoesNotExist:
-            logging.error(f"Domain {self.current_url} does not exist. Skipping this domain.")
+            logging.error(
+                f"Domain {self.current_url} does not exist. Skipping this domain."
+            )
             self.errored_urls.append(self.current_url)
             self.stop_driver()
             return
