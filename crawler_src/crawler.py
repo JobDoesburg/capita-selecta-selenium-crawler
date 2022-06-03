@@ -117,9 +117,11 @@ class Crawler:
 
     def stop_driver(self):
         """Close the driver"""
+        self.driver.stop_client()
         self.driver.get("about:blank")
         self.driver.delete_all_cookies()
         del self.driver.requests
+        self.driver.start_client()
 
     def _get_requests(self):
         """
@@ -315,9 +317,10 @@ class Crawler:
             consent_clicked = False
             consent_failure = True
 
-        time.sleep(self.js_load_wait)
+        if consent_clicked:
+            time.sleep(self.js_load_wait)
+            self._create_screenshot(post_consent=True)
 
-        self._create_screenshot(post_consent=True)
         post_pageload_url = self.driver.current_url
         canvas_image_data = self._capture_fingerprint_canvas_images()
         requests = self._get_requests()
