@@ -305,7 +305,7 @@ class Crawler:
             raise SelfSignedCertificate()
 
         if not check_certificate_host(self.current_url, certificate):
-            raise WrongHostCertificate()
+            raise WrongHostCertificate(certificate, self.current_url)
 
     def _handle_page(self):
         """

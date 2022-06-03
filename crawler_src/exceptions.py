@@ -12,8 +12,12 @@ class SelfSignedCertificate(TLSError):
 
 
 class WrongHostCertificate(TLSError):
+    def __init__(self, certificate, domain):
+        self.certificate = certificate
+        self.domain = domain
+
     def __str__(self):
-        return "Wrong host certificate"
+        return f"Wrong host certificate: valid for {[self.certificate['cn']] + self.certificate['altnames']} but used for {self.domain}"
 
 
 class CertificateExpired(TLSError):
