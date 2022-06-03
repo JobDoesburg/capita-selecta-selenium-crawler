@@ -1,7 +1,7 @@
-import signal
 from os import path
 
 import tqdm
+from selenium.webdriver.common.by import By
 from tld import get_fld
 import logging
 import time
@@ -32,6 +32,7 @@ class Crawler:
         :param mobile: run the browser as mobile device
         :param output_dir: folder to put the output files
         """
+        self.driver = None
         self.timeout = pageload_timeout
         self.js_load_wait = js_load_wait
 
@@ -82,6 +83,8 @@ class Crawler:
         """Start a Chrome browser instance."""
         chrome_options = Options()
 
+        chrome_options.add_argument("incognito")
+
         if self.headless:
             chrome_options.add_argument("--headless")
 
@@ -111,15 +114,16 @@ class Crawler:
             desired_capabilities=desired_capabilities,
         )
         self.driver.set_page_load_timeout(self.timeout)
+        self.driver.set_script_timeout(self.timeout)
 
         if not self.mobile:
             self.driver.set_window_size(1440, 900)
 
-    def stop_driver(self):
-        """Close the driver"""
+    def reset_driver(self):
+        """Clears the driver"""
         self.driver.stop_client()
         self.driver.get("about:blank")
-        self.driver.delete_all_cookies()
+        self.driver.delete_all_cookies()  # not really required because browsing in incognito
         del self.driver.requests
         self.driver.start_client()
 
@@ -175,7 +179,7 @@ class Crawler:
 
     def _capture_fingerprint_canvas_images(self):
         """Detect canvas fingerprinting."""
-        images = self.driver.find_elements_by_class_name("canvas_img_crawler")
+        images = self.driver.find_elements(By.CLASS_NAME, "canvas_img_crawler")
 
         output = []
         for i, image in enumerate(images):
@@ -213,8 +217,8 @@ class Crawler:
         Click on a consent accept banner element.
         :return: whether an element was clicked
         """
-        contents = self.driver.find_elements_by_css_selector(
-            "a, button, div, span, form, p, input[type=button]"
+        contents = self.driver.find_elements(
+            By.CSS_SELECTOR, "a, button, div, span, form, p, input[type=button]"
         )
 
         candidate = None
@@ -240,7 +244,7 @@ class Crawler:
 
         if element_clicked:
             # Also try windows in iframes
-            iframe_contents = self.driver.find_elements_by_css_selector("iframe")
+            iframe_contents = self.driver.find_elements(By.CSS_SELECTOR, "iframe")
             for content in iframe_contents:
                 try:
                     self.driver.switch_to.frame(content)
@@ -281,8 +285,8 @@ class Crawler:
 
         first_request = self.driver.requests[0]
         # Note, this does not always result in the correct request.
-        # In headful mode, Chrome can add additional requests here.
-        # Also think about 301/302 responses
+        # In headful mode, Chrome can trigger additional requests here that
+        # will be caught by selenium-wire.
 
         if first_request.response is None:
             logging.warning("Domain doesn't exist")
@@ -355,7 +359,7 @@ class Crawler:
                 f"Domain {self.current_url} does not exist. Skipping this domain."
             )
             self.errored_urls.append(self.current_url)
-            self.stop_driver()
+            self.reset_driver()
             return
         except TimeoutError:
             logging.error(f"Timeout occurred during crawling of {self.current_url}")
@@ -379,7 +383,7 @@ class Crawler:
                 },
             }
             self._create_json(output)
-            self.stop_driver()
+            self.reset_driver()
             return
         except TLSError as e:
             tls_failure = str(e)
@@ -425,13 +429,9 @@ class Crawler:
             },
         }
         self._create_json(output)
-        self.stop_driver()
+        self.reset_driver()
 
-    def crawl_urls(self, urls):
-        """
-        Crawls a list of urls.
-        :param urls: The urls to crawl.
-        """
+    def _crawl_urls(self, urls):
         with tqdm.tqdm(urls) as urls_progress:
             for i, url in urls_progress:
                 url = f"https://{url}"
@@ -443,4 +443,13 @@ class Crawler:
                     self.errored_urls.append(self.current_url)
                     continue
 
+    def crawl_urls(self, urls):
+        """
+        Crawls a list of urls.
+        :param urls: The urls to crawl.
+        """
+        self._crawl_urls(urls)
         print(f"Errored urls: {self.errored_urls}")
+
+    def __delete__(self, instance):
+        self.driver.quit()
