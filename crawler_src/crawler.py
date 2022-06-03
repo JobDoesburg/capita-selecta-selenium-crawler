@@ -89,12 +89,12 @@ class Crawler:
         if self.mobile:
             mobile_emulation = {"deviceName": "Nexus 6P"}
             chrome_options.add_argument(
-                '--user-agent="Mozilla/5.0 (Linux; Android 6.0.1; Nexus 6P Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.83 Mobile Safari/537.36"'
+                '--user-agent="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.78 Mobile Safari/537.36"'
             )
             chrome_options.add_experimental_option("mobileEmulation", mobile_emulation)
         else:
             chrome_options.add_argument(
-                '--user-agent="Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.111 Safari/537.36"'
+                '--user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36"'
             )
 
         desired_capabilities = {
@@ -113,7 +113,7 @@ class Crawler:
         self.driver.set_page_load_timeout(self.timeout)
 
         if not self.mobile:
-            self.driver.set_window_size(1366, 768)
+            self.driver.set_window_size(1440, 900)
 
     def stop_driver(self):
         """Close the driver"""
