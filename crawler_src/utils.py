@@ -37,7 +37,8 @@ def check_certificate_host(url, certificate):
                     return True
                 return False
             if cert_domain_part is None or (
-                cert_domain_part != "*" and cert_domain_part != full_domain_part
+                cert_domain_part != "*"
+                and cert_domain_part.lower() != full_domain_part.lower()
             ):
                 return False
 
@@ -51,3 +52,9 @@ def check_certificate_host(url, certificate):
             return True
         continue
     return False
+
+
+def check_certificate_self_signed(certificate):
+    for key, val in certificate["issuer"]:
+        if key == b"CN":
+            return certificate["cn"] == val

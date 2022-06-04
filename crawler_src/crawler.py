@@ -1,3 +1,6 @@
+import os
+import sys
+from datetime import datetime
 from os import path
 
 import tqdm
@@ -83,7 +86,9 @@ class Crawler:
         """Start a Chrome browser instance."""
         chrome_options = Options()
 
-        chrome_options.add_argument("incognito")
+        chrome_options.add_argument(
+            "incognito"
+        )  # To make sure no data is being stored during the crawl
 
         if self.headless:
             chrome_options.add_argument("--headless")
@@ -119,13 +124,19 @@ class Crawler:
         if not self.mobile:
             self.driver.set_window_size(1440, 900)
 
+        self._prepare_fingerprint_canvas_capture()
+
     def reset_driver(self):
         """Clears the driver"""
         self.driver.stop_client()
+        time.sleep(1)
+
         self.driver.get("about:blank")
         self.driver.delete_all_cookies()  # not really required because browsing in incognito
-        del self.driver.requests
+        del self.driver.requests  # delete all requests intercepted so-far
+
         self.driver.start_client()
+        time.sleep(1)
 
     def _get_requests(self):
         """
@@ -262,7 +273,7 @@ class Crawler:
             logging.info(f"No consent banner found.")
             return element_clicked
 
-        time.sleep(2)
+        time.sleep(1)
         logging.info(f"URL after accepting consent: {self.driver.current_url}")
 
         return element_clicked
@@ -272,37 +283,42 @@ class Crawler:
         Loads a single url.
         :param url: The url
         """
-        self.current_url = url
-        self._prepare_fingerprint_canvas_capture()
+        del (
+            self.driver.requests
+        )  # make sure any intercepted requests from the browser unrelated to this page are deleted (like pinging accounts.google.com in headful mode)
 
         try:
             self.driver.get(url)
-        except WebDriverException:
-            raise TimeoutError()
+        except WebDriverException as e:
+            raise TimeoutError(e)
 
         if len(self.driver.requests) == 0:
+            if self.driver.title == "502 Bad Gateway":
+                raise DomainDoesNotExist(self.current_url)
             raise TimeoutError()
 
-        first_request = self.driver.requests[0]
-        # Note, this does not always result in the correct request.
-        # In headful mode, Chrome can trigger additional requests here that
-        # will be caught by selenium-wire.
+        first_request = self.driver.requests[0]  # check the first request triggered
+
+        if (
+            first_request.host == "accounts.google.com"
+            and first_request.path == "/ListAccounts"
+        ):
+            # In headful mode, Chrome tries to check if the user has logged-in Google accounts.
+            first_request = self.driver.requests[1]
+
+        if get_fld(first_request.url) != self.current_domain:
+            raise CrawlingException("First intercepted request wasn't for visiting url")
 
         if first_request.response is None:
-            logging.warning(f"Domain {self.current_url} doesn't exist")
-            raise DomainDoesNotExist()
+            raise DomainDoesNotExist(self.current_url)
 
         certificate = first_request.cert
+
         if certificate["expired"] is True:
-            raise CertificateExpired()
+            raise CertificateExpired(certificate, self.current_url)
 
-        def get_certificate_issuer_cn(cert):
-            for key, val in cert["issuer"]:
-                if key == b"CN":
-                    return val
-
-        if certificate["cn"] == get_certificate_issuer_cn(certificate):
-            raise SelfSignedCertificate()
+        if check_certificate_self_signed(certificate):
+            raise SelfSignedCertificate(certificate, self.current_url)
 
         if not check_certificate_host(self.current_url, certificate):
             raise WrongHostCertificate(certificate, self.current_url)
@@ -347,13 +363,13 @@ class Crawler:
         :param url: The url to crawl
         :param rank: the rank of the url to include in the output
         """
-        logging.info(
-            f'Start crawling {self.current_url}: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}'
-        )
+        self.current_url = url
         tls_failure = None
 
-        start_time = time.mktime(time.localtime())
-
+        start_time = datetime.now()
+        logging.info(
+            f"Start crawling {self.current_url}: {start_time:%Y-%m-%dT%H:%M:%S.%f%z}"
+        )
         try:
             self._load_page_first_time(url)
         except DomainDoesNotExist:
@@ -393,7 +409,7 @@ class Crawler:
                 f"TLS error occurred during crawling of {self.current_url}: {tls_failure}"
             )
 
-        end_time = time.mktime(time.localtime())
+        end_time = datetime.now()
 
         (
             post_pageload_url,
@@ -404,7 +420,9 @@ class Crawler:
             consent_failure,
         ) = self._handle_page()
 
-        logging.info(f'Crawl end: {time.strftime("%d-%b-%Y_%H%M", time.localtime())}')
+        logging.info(
+            f"End crawling {self.current_url}: {end_time:%Y-%m-%dT%H:%M:%S.%f%z}"
+        )
 
         if consent_failure:
             consent_status = "errored"
@@ -412,6 +430,9 @@ class Crawler:
             consent_status = "clicked"
         else:
             consent_status = "not_found"
+
+        start_time = time.mktime(start_time.timetuple())
+        end_time = time.mktime(end_time.timetuple())
 
         output = {
             "website_domain": self.current_domain,
@@ -445,6 +466,7 @@ class Crawler:
                 except Exception as e:
                     logging.error(f"Something went wrong during crawling of {url}: {e}")
                     self.errored_urls.append(self.current_url)
+                    self.reset_driver()
                     continue
 
     def crawl_urls(self, urls):
