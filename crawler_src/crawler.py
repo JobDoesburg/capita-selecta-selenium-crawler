@@ -459,23 +459,28 @@ class Crawler:
         self._create_json(output)
         self.reset_driver()
 
+    def _crawl_url_from_list(self, url, rank):
+        try:
+            self.crawl_url(url, rank=rank)
+        except (
+            InvalidSessionIdException,
+            TimeoutException,
+            CrawlerInterceptionException,
+        ) as e:
+            # Restart driver if Selenium breaks and retry
+            logging.warning(f"Selenium broke during crawling of {url}. Retrying: {e}")
+            self.driver.quit()
+            time.sleep(10)
+            self.start_driver()
+            self.crawl_url(url, rank=rank)
+
     def _crawl_urls(self, urls):
         with tqdm.tqdm(urls) as urls_progress:
             for i, url in urls_progress:
                 url = f"https://{url}"
                 urls_progress.set_description(f"Crawling {url}")
                 try:
-                    self.crawl_url(url, rank=i)
-                except (
-                    InvalidSessionIdException,
-                    TimeoutException,
-                    CrawlerInterceptionException,
-                ):  # Restart driver if Selenium breaks and retry
-                    self.driver.quit()
-                    time.sleep(10)
-                    self.start_driver()
-                    self.crawl_url(url, rank=i)
-                    continue
+                    self._crawl_url_from_list(url, i)
                 except Exception as e:
                     logging.error(f"Something went wrong during crawling of {url}: {e}")
                     self.errored_urls.append(self.current_url)
