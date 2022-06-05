@@ -459,6 +459,11 @@ class Crawler:
         self._create_json(output)
         self.reset_driver()
 
+    def restart_driver(self):
+        self.driver.quit()
+        time.sleep(10)
+        self.start_driver()
+
     def _crawl_url_from_list(self, url, rank):
         try:
             self.crawl_url(url, rank=rank)
@@ -469,9 +474,7 @@ class Crawler:
         ) as e:
             # Restart driver if Selenium breaks and retry
             logging.warning(f"Selenium broke during crawling of {url}. Retrying: {e}")
-            self.driver.quit()
-            time.sleep(10)
-            self.start_driver()
+            self.restart_driver()
             self.crawl_url(url, rank=rank)
 
     def _crawl_urls(self, urls):
@@ -484,7 +487,7 @@ class Crawler:
                 except Exception as e:
                     logging.error(f"Something went wrong during crawling of {url}: {e}")
                     self.errored_urls.append(self.current_url)
-                    self.reset_driver()
+                    self.restart_driver()
                     continue
 
     def crawl_urls(self, urls):
