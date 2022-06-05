@@ -1,18 +1,21 @@
-from datetime import datetime
-from os import path
-
-import tqdm
-from selenium.webdriver.common.by import By
-from tld import get_fld
-import logging
-import time
-import json
 import base64
+from datetime import datetime
+import json
+import logging
+from os import path
+import time
+from tld import get_fld
+import tqdm
 
 from seleniumwire import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import NoSuchFrameException
+from selenium.common.exceptions import (
+    InvalidSessionIdException,
+    NoSuchFrameException,
+    TimeoutException,
+)
 from selenium.common.exceptions import WebDriverException
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 
 from exceptions import *
 from utils import *
@@ -96,12 +99,12 @@ class Crawler:
             mobile_emulation = {"deviceName": "Nexus 6P"}
             chrome_options.add_argument(
                 '--user-agent="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.78 Mobile Safari/537.36"'
-            )
+            )  # The most common Chrome user agent for this device
             chrome_options.add_experimental_option("mobileEmulation", mobile_emulation)
         else:
             chrome_options.add_argument(
                 '--user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36"'
-            )
+            )  # The most common Chrome user agent on the web
 
         desired_capabilities = {
             "acceptInsecureCerts": True,
@@ -109,7 +112,7 @@ class Crawler:
         }
         seleniumwire_options = {
             "request_storage": "memory",
-        }  # Use in-memory storage because it is more optimal
+        }  # Use in-memory storage because it is more efficient
 
         self.driver = webdriver.Chrome(
             options=chrome_options,
@@ -120,7 +123,9 @@ class Crawler:
         self.driver.set_script_timeout(self.timeout)
 
         if not self.mobile:
-            self.driver.set_window_size(1440, 900)
+            self.driver.set_window_size(
+                1440, 900
+            )  # The most common screen resolution on the web
 
         self._prepare_fingerprint_canvas_capture()
 
@@ -305,7 +310,7 @@ class Crawler:
             first_request = self.driver.requests[1]
 
         if get_fld(first_request.url) != self.current_domain:
-            raise CrawlingException("First intercepted request wasn't for visiting url")
+            raise CrawlerInterceptionException(self.current_url, first_request.url)
 
         if first_request.response is None:
             raise DomainDoesNotExist(self.current_url)
@@ -461,6 +466,16 @@ class Crawler:
                 urls_progress.set_description(f"Crawling {url}")
                 try:
                     self.crawl_url(url, rank=i)
+                except (
+                    InvalidSessionIdException,
+                    TimeoutException,
+                    CrawlerInterceptionException,
+                ):  # Restart driver if Selenium breaks and retry
+                    self.driver.quit()
+                    time.sleep(10)
+                    self.start_driver()
+                    self.crawl_url(url, rank=i)
+                    continue
                 except Exception as e:
                     logging.error(f"Something went wrong during crawling of {url}: {e}")
                     self.errored_urls.append(self.current_url)
