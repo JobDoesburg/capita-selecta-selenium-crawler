@@ -14,12 +14,12 @@ The crawler is written in Python and uses Selenium with Chrome. Selenium-wire is
 
 
 ### Run a crawl
-- `main.py -i crawler_src/tranco-top-500-safe.csv` to run a crawl on the tranco-top-500 dataset
+- `main.py -i tranco-top-500-safe.csv` to run a crawl on the tranco-top-500 dataset
 - `main.py -u https://google.com/` for a single domain.
 
 Use `main.py -h` to see all options.
 
-For running a crawl on a server, `screen` can be useful, and the command `python main.py -i crawler_src/tranco-top-500-safe.csv && python main.py -i crawler_src/tranco-top-500-safe.csv -m mobile` 
+For running a crawl on a server, `screen` can be useful, and the command `python main.py -i tranco-top-500-safe.csv && python main.py -i tranco-top-500-safe.csv -m mobile` 
 
 ### Run the analysis
 - run `jupyter notebook` from the root of the project
